@@ -135,13 +135,84 @@ static __inline cXyz* dKy_getEffectiveWindVec(void) {
 }
 
 /**
+ * [V] The wind direction inputs the per-frame calculation actually reads.
+ *
+ * 0x0257D398 rebuilds the wind every frame from a pitch/yaw pair of u16 game
+ * angles and writes the result to envlight + 0x9FC (x), 0xA00 (y), 0xA04 (z),
+ * easing toward it with cLib_addCalc unless envlight + 0x109C is set, in which
+ * case it assigns outright. The arithmetic is
+ *
+ *     x = cos(pitch) * cos(yaw)
+ *     y = sin(pitch)
+ *     z = cos(pitch) * sin(yaw)
+ *
+ * so yaw is measured from +X, not from +Z the way actor facing angles are.
+ * WWHD_ENVLIGHT_WIND_YAW_FROM_FACING converts between the two.
+ *
+ * There are TWO pairs and a selector. envlight + 0xA2D picks: 0 or -1 uses the
+ * pair at 0xA24/0xA26, and only if envlight + 0xA2C is non-zero - otherwise the
+ * calculation falls back to table entry 0 and ignores both. Any other value
+ * uses the pair at 0xA28/0xA2A. Writing both pairs and forcing 0xA2C covers
+ * every branch without having to know which mode the stage is in.
+ *
+ * envlight + 0xA08 is a cXyz* that short-circuits all of this when non-NULL -
+ * that is the forced wind an event or the Wind Waker installs, and it is left
+ * alone here for the same reason mpWindVecOverride is.
+ */
+#define WWHD_ENVLIGHT_WIND_VEC        0x09FCu /* [V] x, y, z as three floats */
+#define WWHD_ENVLIGHT_WIND_OVERRIDE   0x0A08u /* [V] cXyz*, wins when set     */
+#define WWHD_ENVLIGHT_WIND_POWER      0x0A18u /* [V] current strength         */
+#define WWHD_ENVLIGHT_WIND_POWER_DST  0x0A20u /* [V] strength being eased to  */
+#define WWHD_ENVLIGHT_WIND_PITCH_A    0x0A24u /* [V] pair A, pitch            */
+#define WWHD_ENVLIGHT_WIND_YAW_A      0x0A26u /* [V] pair A, yaw              */
+#define WWHD_ENVLIGHT_WIND_PITCH_B    0x0A28u /* [V] pair B, pitch            */
+#define WWHD_ENVLIGHT_WIND_YAW_B      0x0A2Au /* [V] pair B, yaw              */
+#define WWHD_ENVLIGHT_WIND_ANGLE_ON   0x0A2Cu /* [V] pair A is used only if
+                                               *     this is non-zero         */
+#define WWHD_ENVLIGHT_WIND_PAIR_SEL   0x0A2Du /* [V] 0 or -1 selects pair A   */
+
+/** [V] Actor facing angle (x=sin, z=cos) to wind yaw (x=cos, z=sin). */
+#define WWHD_ENVLIGHT_WIND_YAW_FROM_FACING(a) ((s16)(0x4000 - (s32)(a)))
+
+/**
+ * [V] Point the ambient wind along a game facing angle.
+ *
+ * Writes both angle pairs and enables pair A, so it takes effect whichever mode
+ * the stage selected. Pitch is levelled, giving a horizontal wind. Returns the
+ * previous value of the pair-A enable byte in *prevAngleOn when that is given,
+ * so a caller that stops driving the wind can put it back.
+ *
+ * The strength is untouched - this only turns the wind, it does not raise it.
+ * A stage with no wind stays still, pointed the new way.
+ */
+static __inline int dKy_setWindAngle(s16 facing, u8* prevAngleOn) {
+    u8* e = (u8*)dKy_getEnvlight();
+    const s16 yaw = WWHD_ENVLIGHT_WIND_YAW_FROM_FACING(facing);
+    if (!e)
+        return 0;
+    if (prevAngleOn)
+        *prevAngleOn = *(e + WWHD_ENVLIGHT_WIND_ANGLE_ON);
+    *(u16*)(e + WWHD_ENVLIGHT_WIND_PITCH_A) = 0u;
+    *(u16*)(e + WWHD_ENVLIGHT_WIND_YAW_A)   = (u16)yaw;
+    *(u16*)(e + WWHD_ENVLIGHT_WIND_PITCH_B) = 0u;
+    *(u16*)(e + WWHD_ENVLIGHT_WIND_YAW_B)   = (u16)yaw;
+    *(e + WWHD_ENVLIGHT_WIND_ANGLE_ON) = 1u;
+    return 1;
+}
+
+/** [V] Put the pair-A enable byte back, ending a forced direction. */
+static __inline void dKy_restoreWindAngleOn(u8 prevAngleOn) {
+    u8* e = (u8*)dKy_getEnvlight();
+    if (e)
+        *(e + WWHD_ENVLIGHT_WIND_ANGLE_ON) = prevAngleOn;
+}
+
+/**
  * [?] Point mWindVec along a game angle, keeping its current strength.
  *
- * KNOWN NOT TO TAKE EFFECT. The wind calculation at 0x0257D398 rebuilds the
- * wind into envlight+0x9FC every frame from an angle pair elsewhere in the
- * struct, so this writes a field nothing downstream reads. It is kept because
- * the arithmetic is right and will be reused once the correct input field is
- * identified - see open question 1 in docs/METHODOLOGY.md. Do not build on it.
+ * SUPERSEDED by dKy_setWindAngle, and KNOWN NOT TO TAKE EFFECT: mWindVec is not
+ * what the per-frame calculation reads. Kept only because the arithmetic is a
+ * correct angle-to-vector conversion. Do not build on it.
  *
  * Strength is the vector's magnitude, so the direction is set by rebuilding the
  * unit vector and rescaling. A wind that has decayed to nothing is given unit

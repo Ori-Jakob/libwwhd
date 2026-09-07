@@ -38,6 +38,8 @@
 #include "libwwhd/wwhd_map.h"
 #include "libwwhd/wwhd_region.h"
 
+#include "libwwhd/m_Do/m_Do_display.h"
+
 #include "libwwhd/SSystem/c_bg_w.h"
 #include "libwwhd/SSystem/c_counter.h"
 
@@ -60,6 +62,7 @@
 #include "libwwhd/d/d_demo.h"
 #include "libwwhd/d/d_kankyo.h"
 #include "libwwhd/d/d_meter.h"
+#include "libwwhd/d/d_msg.h"
 
 #include "libwwhd/d/actor/d_a_player_demo.h"
 #include "libwwhd/d/actor/d_a_player_proc.h"

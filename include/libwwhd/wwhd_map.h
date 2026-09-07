@@ -250,7 +250,148 @@ typedef enum wwhd_region_e {
      *     whose first word is the reset flag dComIfG_resetToOpening reads   \
      *     and the logo scene clears. Read out of each build's             \
      *     resetToOpening. */                                               \
-    X(resetData,            DATA, 0x101F4974u, 0x101F4974u, 0x101F4994u)
+    X(resetData,            DATA, 0x101F4974u, 0x101F4974u, 0x101F4994u)       \
+                                                                               \
+    /* --- d_msg: the message box --- */                                       \
+    /* [V] dMsgBox_c::isDecidePressed - `return (this->+0x54 & 1) != 0`, the   \
+     *     six instructions every waiting message state asks whether the       \
+     *     player pressed the advance button. Nine callers: the page wait,     \
+     *     the hand-send wait, both close waits, both choice boxes, the        \
+     *     choice-list open, the number input and the NPC answer wait.         \
+     *                                                                         \
+     *     DO NOT REPLACE THIS WITH A C FUNCTION. It clobbers r0 and r3 and    \
+     *     NOTHING ELSE, and its callers were compiled knowing that: the       \
+     *     choice-list open holds `this` in r11 - a volatile register - across \
+     *     the call and computes its state manager from r11 afterwards. An     \
+     *     ordinary C replacement clobbers r4..r12, so `this` comes back as    \
+     *     rubbish and the next state change runs on a pointer that is not a   \
+     *     box. That is a hang or a crash a few frames later, in game code,    \
+     *     with nothing of yours on the stack. Route the hook through an       \
+     *     assembly shim that saves r4..r12, CTR and CR around the call.       \
+     *                                                                         \
+     *     Byte-identical in all three builds, which is how it was ported;     \
+     *     the same six bytes also match one unrelated `&1` accessor 0x844     \
+     *     lower in every build, so the nine callers are what pin it - the     \
+     *     first of them is always the page wait at this address + 0x18. */    \
+    X(dMsg_decideCheck,     TEXT, 0x026FCEC8u, 0x026FD70Cu, 0x026FD98Cu)       \
+    /* [V] dMsgBox_c print step: how many characters the typing state prints   \
+     *     this frame. Reads the OTHER input word, +0x50: bit 1 makes it jump  \
+     *     mPrintPos straight to WWHD_MSG_PRINT_POS_MAX and bit 0 multiplies   \
+     *     the rate, which is why holding the advance button turns pages but   \
+     *     does not rush the text - the two are different words. Sits at       \
+     *     dMsg_decideCheck - 0x3C8 in every build, the same first twelve      \
+     *     bytes in each, with the typing state its second caller at +0x110.   \
+     *     That fixed spacing is the port: the whole translation unit is       \
+     *     laid out identically in the three images. */                        \
+    X(dMsg_printStep,       TEXT, 0x026FCB00u, 0x026FD344u, 0x026FD5C4u)       \
+    /* [V] dMsgObject_c* - the message manager, and the only pointer needed to \
+     *     reach a live text box without a process search. Read out of the     \
+     *     typing state, which opens `lis rX, 0x101f` then `lwz rX, off(rX)`   \
+     *     in every build: 0x4B5C in USA and EUR, 0x4B74 in JAP. The typing    \
+     *     state was itself located by its fixed spacing from                  \
+     *     dMsg_decideCheck, so the three were read from the same place. */    \
+    X(msgObject,            DATA, 0x101F4B5Cu, 0x101F4B5Cu, 0x101F4B74u)       \
+    /* [V] fStateMgr getState(mgr) - returns the CURRENT state's descriptor,   \
+     *     the same object the message code compares against when it asks      \
+     *     which state a box is in (0x026B699C calls this then reads the       \
+     *     descriptor's vtable at +0x08). A descriptor carries its name at     \
+     *     +0x04, so this is how a caller turns a live box into a printable    \
+     *     state name. Byte-identical at this address in all three builds,     \
+     *     like the rest of the low framework. */                              \
+    X(fStateMgr_getState,   TEXT, 0x02006478u, 0x02006478u, 0x02006478u)      \
+    /* [V] dMsgBox_c input latch for the mActiveBox 0 and 1 boxes ONLY. Copies\
+     *     the shared UI input record (see uiDisplayMgr) into the box: +0x50\
+     *     from record+0x10C, +0x54 from record+0x00, +0x58 from record+0x00 |\
+     *     record+0x08. It is a copy, not an accumulate - the box's own +0x54 \
+     *     is overwritten outright, so a synthetic button written to that word\
+     *     anywhere else in the frame is discarded here before any state reads\
+     *     it. Its two callers, 0x026B3C24 (mActiveBox 0) and 0x026B67A4      \
+     *     (mActiveBox 1), run it immediately before fStateMgr execute on     \
+     *     box+0x18 with nothing in between.                                  \
+     *                                                                        \
+     *     IT IS NOT THE ONLY INPUT LATCH. Four other box updaters carry the  \
+     *     same three stores without calling this one: 0x026BC2DC (mActiveBox \
+     *     2/3/4) delegates to 0x026BC148, while 0x026ADE10 (mActiveBox 5),   \
+     *     0x026B8DBC and 0x026B04B4 inline them. The last two are gated on   \
+     *     their own state rather than on mActiveBox and are what drive a     \
+     *     cutscene box, so a hook here reaches ordinary dialogue and misses  \
+     *     demo text completely - confirmed on hardware, where a counter on   \
+     *     this function never moved across a whole cutscene. To reach every  \
+     *     class at once, write uiDisplayMgr instead.                       \
+     *                                                                        \
+     *     Both callers hold the box in r30 across the call, and the function \
+     *     is a frameless leaf taking only r3, so replacing it stays safe     \
+     *     under a backend whose stub clobbers r11. Located in each build by  \
+     *     the store to 0x58(r3); all three bodies are identical and open     \
+     *     `lis r12, 0x101f`. */                                              \
+    X(dMsgBox_setInput,     TEXT, 0x026FF5ACu, 0x026FFE68u, 0x02700094u)      \
+    /* [V] The Wii U display / UI-input manager, held as a POINTER: the       \
+     *     word at this address is the manager, not the manager itself. Two   \
+     *     things in it are known.                                            \
+     *                                                                        \
+     *     Manager + 0x00 is the UI input record every message box copies its \
+     *     buttons from. Record word 0x00 becomes dMsgBox_c::mInputFlags (bit \
+     *     0 decide, bit 1 cancel), word 0x08 is OR'd into the box's +0x58,   \
+     *     and word 0x43 becomes dMsgBox_c::mPrintFlags. All six box updaters \
+     *     read it, so it is the one lever that reaches every message class - \
+     *     see dMsgBox_setInput and dMsg_getInputRecord().                    \
+     *                                                                        \
+     *     Manager + 0x1D0 is the display mode: 1 while the game plays on the \
+     *     TV, 2 while it plays on the GamePad. 0 and 3 are two further       \
+     *     targets the same setter accepts. Written by the setter at USA      \
+     *     0x02618094 / EUR 0x02618798, whose only two callers are the        \
+     *     ::StateID_ChangeToTvMode and ::StateID_ChangeToDrcMode state       \
+     *     functions - identical apart from passing 1 and 2 - and read back by\
+     *     the per-frame device pass at USA 0x02617AF4, which switches on the \
+     *     same field. Offset confirmed in USA and EUR; treat a value outside \
+     *     0..3 as unknown rather than trusting it.                           \
+     *                                                                        \
+     *     The base was read out of dMsgBox_setInput's `lwz r12, off(r12)` in \
+     *     each build. */                                                     \
+    X(uiDisplayMgr,         DATA, 0x101F5088u, 0x101F50A0u, 0x101F50D0u)      \
+    /* [V] daPyProc_MOVE_e, Link's ground move procedure. It is proc 6 in     \
+     *     daPyProcTable, whose entries are 12 bytes with the function pointer\
+     *     at +0x04, so entry 6 is the word at daPyProcTable + 0x4C - read    \
+     *     from there in each build rather than matched by shape. Entries 3   \
+     *     and 4 in that table agree with daPyProc_CONTROLL_WAIT_e and        \
+     *     daPyProc_WAIT_e, which is what pins the stride.                    \
+     *                                                                        \
+     *     Worth hooking because a ground speed boost written from outside the\
+     *     player update is too late. The proc produces mNormalSpeed, and     \
+     *     posMoveFromFootPos has already turned it into speedF by the time a \
+     *     once-a-frame tick runs, so writing speedF from there changes what a\
+     *     HUD reads and nothing else. swimSpeedConst carries the same lesson \
+     *     for swimming. Boosting just after this returns lands between the   \
+     *     proc producing mNormalSpeed and the conversion that consumes it.   \
+     *                                                                        \
+     *     Scale mNormalSpeed, not mMaxNormalSpeed. This proc reads +0x3C4 for\
+     *     its own cap and 0x023E14A0 divides by it to pick walk against run  \
+     *     animations, so inflating it makes Link walk-animate at running     \
+     *     speed.                                                             \
+     *                                                                        \
+     *     A large non-leaf that calls out on every path, so no caller can    \
+     *     keep anything live in a volatile across it and replacing it is safe\
+     *     under a backend whose stub clobbers r11. */                        \
+    X(daPy_procMove,        TEXT, 0x024198D4u, 0x024198D8u, 0x024198DCu)      \
+    /* [V] daPyProc_CRAWL_MOVE_e, Link's crawl. Entry 16 of daPyProcTable,    \
+     *     read from daPyProcTable + 0xC4 in each build - see daPy_procMove   \
+     *     for the table shape.                                               \
+     *                                                                        \
+     *     Unlike the ground move it sets mNormalSpeed outright rather than   \
+     *     ramping toward a target: both exits assign +0x6A14 to plus or minus\
+     *     the value 0x0242B800 returns. So a boost applied after it returns  \
+     *     cannot compound, because the next frame overwrites rather than     \
+     *     accumulates. */                                                    \
+    X(daPy_procCrawlMove,   TEXT, 0x0242C80Cu, 0x0242C810u, 0x0242C814u)      \
+    /* [V] daPyProc_SWIM_MOVE_e. Entry 55 of daPyProcTable, so                \
+     *     daPyProcTable + 0x298 - see daPy_procMove for the table shape.     \
+     *     Prologue is stwu r1,-0x58(r1).                                     \
+     *                                                                        \
+     *     Hooked for the same reason as the ground move: an instant speed    \
+     *     control that writes mNormalSpeed from a once-a-frame tick is racing\
+     *     whatever consumes it. Applying just after this returns is          \
+     *     unambiguous. */                                                    \
+    X(daPy_procSwimMove,    TEXT, 0x0242F70Cu, 0x0242F710u, 0x0242F714u)
 
 typedef struct wwhd_map_t {
 #define X(name, seg, usa, eur, jap) wwhd_addr_t name;
