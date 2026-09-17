@@ -39,6 +39,7 @@
 #include "libwwhd/wwhd_region.h"
 
 #include "libwwhd/m_Do/m_Do_display.h"
+#include "libwwhd/m_Do/m_Do_audio.h"
 
 #include "libwwhd/SSystem/c_bg_w.h"
 #include "libwwhd/SSystem/c_counter.h"
@@ -67,6 +68,9 @@
 #include "libwwhd/d/actor/d_a_player_demo.h"
 #include "libwwhd/d/actor/d_a_player_proc.h"
 #include "libwwhd/d/actor/d_a_player.h"
+#include "libwwhd/d/d_cc_s.h"
+#include "libwwhd/d/d_cc_mass_s.h"
 #include "libwwhd/d/actor/d_a_ship.h"
+#include "libwwhd/d/actor/d_a_title.h"
 
 #endif /* LIBWWHD_H */

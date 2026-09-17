@@ -4,6 +4,11 @@
 #include "libwwhd/wwhd_types.h"
 #include "libwwhd/wwhd_region.h"
 
+/** [V] The process id that stands for "no actor": dEvt_control_c::setParam
+ *  (0x0253F138 in USA) stores it for a NULL partner, and fopAcM_SearchByID
+ *  finds nothing for it. */
+#define fpcM_ERROR_PROCESS_ID 0xFFFFFFFFu
+
 /**
  * libwwhd - actor base class (f_op_actor.cpp / f_op_actor_mng.cpp)
  *

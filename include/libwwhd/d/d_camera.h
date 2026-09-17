@@ -346,4 +346,71 @@ static __inline dCamera_algEntry_c* dCam_getAlgEntry(int alg) {
     return &t[alg];
 }
 
+/* ------------------------------------------------------------------------- */
+/* The camera process around dCamera_c                                        */
+
+/**
+ * [V] dCamera_c is a member of the camera process (the GameCube
+ * camera_process_class): camera_execute (USA 0x024FFA3C, EUR 0x024FFA40,
+ * JAP 0x024FFA44) calls Run on this + 0x248 in all three builds.
+ *
+ * The process also carries the view record the renderer consumes, the
+ * GameCube view_class shifted up by 4: near at +0xCC, far at +0xD0, fovy in
+ * degrees at +0xD4, aspect at +0xD8, eye at +0xDC, center at +0xE8, up at
+ * +0xF4, bank at +0x100 and a GL-style perspective at +0x104. view_setup
+ * (0x024F8430/34/38, run right after Run) fills eye, center, up, fovy and
+ * bank from dCamera_c - or from the demo camera when one is active, which is
+ * why a viewer reads this record rather than the dCamera_c members - and
+ * takes near and far from the stage. camera_draw (0x024FFC40/44/48) builds
+ * +0x104 from +0xD4/+0xD8/+0xCC/+0xD0 (0x028E9948: m22 = -(f+n)/(f-n),
+ * m23 = -2fn/(f-n), m32 = -1) and hands the same four values, fovy in
+ * radians, to a projection object at +0x8B4 (0x0274E04C: dirty byte at +0,
+ * near +0x94, far +0x98, aspect +0xAC). That object's device matrix at +0x44
+ * (returned by 0x0274D83C after the dirty update through the vtable at
+ * +0x90, which builds +0x04 and then derives +0x44 from it) is what the draw
+ * copies into the renderer's global projection (USA 0x104B470C), so it is
+ * the projection the depth buffer was written with, device z range included.
+ */
+#define WWHD_CAMPROC_OFF_DCAMERA   0x248
+#define WWHD_CAMPROC_OFF_VIEW      0x0CC
+#define WWHD_CAMPROC_OFF_PROJ_OBJ  0x8B4
+#define WWHD_PROJ_OFF_DEVICE_MTX   0x044
+
+typedef struct dCam_view_t {
+    /* 0x00 */ f32  mNear;        /* [V] the stage's near plane */
+    /* 0x04 */ f32  mFar;         /* [V] the stage's far plane */
+    /* 0x08 */ f32  mFovy;        /* [V] degrees, after the demo override */
+    /* 0x0C */ f32  mAspect;      /* [V] a constant, 16:9 */
+    /* 0x10 */ cXyz mEye;         /* [V] */
+    /* 0x1C */ cXyz mCenter;      /* [V] */
+    /* 0x28 */ cXyz mUp;          /* [V] */
+    /* 0x34 */ s16  mBank;        /* [V] */
+    /* 0x36 */ u8   _pad_36[2];
+    /* 0x38 */ f32  mProjMtx[16]; /* [V] row-major, GL-style z */
+} dCam_view_t;
+WWHD_ASSERT_OFFSET(dCam_view_t, mEye,     0x10);
+WWHD_ASSERT_OFFSET(dCam_view_t, mBank,    0x34);
+WWHD_ASSERT_OFFSET(dCam_view_t, mProjMtx, 0x38);
+WWHD_ASSERT_SIZE  (dCam_view_t, 0x78);
+
+/** [V] The camera process a dCamera_c lives in, or NULL. */
+static __inline u8* dCam_getProcess(dCamera_c* cam) {
+    return cam ? (u8*)cam - WWHD_CAMPROC_OFF_DCAMERA : (u8*)0;
+}
+
+/** [V] The renderer's view record inside a camera process, or NULL. */
+static __inline const dCam_view_t* dCam_getView(const void* process) {
+    return process ? (const dCam_view_t*)((const u8*)process + WWHD_CAMPROC_OFF_VIEW)
+                   : (const dCam_view_t*)0;
+}
+
+/** [V] The device projection matrix (16 floats, row-major) the scene is drawn
+ *  with, inside a camera process, or NULL. Rows 2 and 3 give window depth:
+ *  z_clip = m[10] * z_eye + m[11], w_clip = m[14] * z_eye + m[15]. */
+static __inline const f32* dCam_getDeviceProjMtx(const void* process) {
+    return process ? (const f32*)((const u8*)process + WWHD_CAMPROC_OFF_PROJ_OBJ +
+                                  WWHD_PROJ_OFF_DEVICE_MTX)
+                   : (const f32*)0;
+}
+
 #endif /* LIBWWHD_D_CAMERA_H */

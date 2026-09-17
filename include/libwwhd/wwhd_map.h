@@ -218,6 +218,21 @@ typedef enum wwhd_region_e {
     X(fopAcM_createHeap,    TEXT, 0x025D5FECu, 0x025D5FACu, 0x025D5FD8u)       \
     /* [V] spawn relative to a parent */                                       \
     X(fopAcM_createChild,   TEXT, 0x025D5B20u, 0x025D5AE0u, 0x025D5B0Cu)       \
+    /* [V] fopAcM_posMove(fopAc_ac_c*, const cXyz* offset): current.pos +=     \
+     *     speed, plus the offset when non-NULL. Every actor execute ends      \
+     *     in it, the boat's included: daShip_c::execute (0x02477A24 in        \
+     *     USA) runs the current procedure, builds speed.x/z from speedF       \
+     *     and current.angle.y, then calls this. Writing the boat's speed      \
+     *     just before it is the boat's counterpart of                         \
+     *     daPy_posMoveFromFootPos.                                            \
+     *                                                                         \
+     *     A leaf: first word lfs f12,0x340(r3) (0xC1830340), scratches r12    \
+     *     and never touches r11. Its only same-module caller, the gravity     \
+     *     variant 0x70 bytes later, keeps nothing live across it. All         \
+     *     three builds read from their images: byte-identical, EUR at         \
+     *     USA-0x40 and JAP at USA-0x14 like the fopAcM_* slots above, with    \
+     *     the same 34 callers each. */                                        \
+    X(fopAcM_posMove,       TEXT, 0x025D6800u, 0x025D67C0u, 0x025D67ECu)       \
     /* [V] (tag,&procName) */                                                  \
     X(fopAcM_searchByID,    TEXT, 0x025D5218u, 0x025D51D8u, 0x025D5204u)       \
     /* [V] Search tags handed to fopAcM_searchByID. These are label addresses  \
@@ -246,6 +261,60 @@ typedef enum wwhd_region_e {
      *     scene's draw, the stage select and the file select call to move  \
      *     to another scene. Read out of each build's draw. */               \
     X(fopScnM_changeReq,    TEXT, 0x025DC86Cu, 0x025DC82Cu, 0x025DC858u)     \
+    /* [V] The audio side of a stage change. Every menu-driven start (the    \
+     *     file select at 0x025ADC60, dComIfG_changeOpeningScene) and the    \
+     *     play scene's own draw follow fopScnM_ChangeReq with this, as      \
+     *     (&mNextStage, mNextStage.mRoomNo, mNextStage.mLayer). A one-      \
+     *     shot: when bgmStageTimer is 0 it hands the record to the audio    \
+     *     manager (0x02027814, which maps the stage name to its BGM) and    \
+     *     sets the timer to 0x24. Read out of each build's draw. A stage    \
+     *     entered without it starts with the audio manager still tuned      \
+     *     to the scene before. */                                           \
+    X(bgmStagePrepare,      TEXT, 0x025E17CCu, 0x025E178Cu, 0x025E17B8u)     \
+    /* [V] The byte the routine above arms. The main frame (0x025F172C)      \
+     *     counts it down to 1, and the play scene's first create phase      \
+     *     (table slot 1, 0x025B13EC) waits while it is 2 or more, then      \
+     *     applies the change and clears it. 0 is idle. Read out of that     \
+     *     phase in each build. */                                           \
+    X(bgmStageTimer,        DATA, 0x101F4707u, 0x101F4707u, 0x101F4727u)     \
+    /* [V] Pointer to the overlap (fade) singleton at 0x1048A55C while a     \
+     *     scene change with an overlap is in flight, 0 otherwise. Read      \
+     *     out of fopScnM_ChangeReq's overlap step (0x025DBE80) in each      \
+     *     build; that step refuses while it is set. */                      \
+    X(sceneOverlap,         DATA, 0x101F36CCu, 0x101F36CCu, 0x101F36ECu)     \
+    /* [V] The scene manager's "a change with an overlap is queued" flag,    \
+     *     set by fopScnM_ChangeReq's core (0x025DCE04) and cleared by the   \
+     *     request's last phase (0x025DCCE0). While it is set every          \
+     *     further overlap ChangeReq returns 0, which the play scene's       \
+     *     draw never checks. Read out of that core in each build. */        \
+    X(sceneChangeBusy,      DATA, 0x101F37E0u, 0x101F37E0u, 0x101F3800u)     \
+    /* [V] Fade every BGM handle out over N frames and clear the audio       \
+     *     manager's BGM state (wraps 0x02021F28): what the play scene's     \
+     *     draw does with 30 right after its ChangeReq and before priming    \
+     *     the next stage's music. Read out of each build's draw. */         \
+    X(bgmStopAll,           TEXT, 0x025E1904u, 0x025E18C4u, 0x025E18F0u)     \
+    /* [V] Non-zero while the queued stage's BGM wave banks are still        \
+     *     loading (0x0202796C checks the two banks of the stage's set).     \
+     *     Create-phase table slot 5 (0x025B1F54) waits for 0. */            \
+    X(bgmStageBusy,         TEXT, 0x025E18B8u, 0x025E1878u, 0x025E18A4u)     \
+    /* [V] Request the twenty common wave banks (the table at 0x10003844)    \
+     *     that every play stage's music needs, skipping any already         \
+     *     loaded (wraps 0x02027A7C). The file select's create phase at      \
+     *     0x025ADA7C is its only caller: a fresh boot's title never loads   \
+     *     them, and the play scene's create-phase slot 5 waits for them     \
+     *     through bgmStageBusy, so a play scene started straight from       \
+     *     that title hangs on a black screen. USA and EUR identical; JAP    \
+     *     read out of its file select, 4 bytes later. */                    \
+    X(bgmCommonLoad,        TEXT, 0x02031090u, 0x02031090u, 0x02031094u)     \
+    /* [V] Non-zero once all twenty common wave banks are resident, or       \
+     *     when there is no audio manager (wraps 0x020278E8). The file       \
+     *     select's next phase (0x025ADAC8) polls it before it goes on. */   \
+    X(bgmCommonReady,       TEXT, 0x020310A4u, 0x020310A4u, 0x020310A8u)     \
+    /* [V] The audio manager pointer: the word every stage BGM wrapper       \
+     *     above loads its object from. The same address in all three        \
+     *     builds, read out of each build's bgmStagePrepare. What is known   \
+     *     of the object is in m_Do/m_Do_audio.h. */                         \
+    X(audioMgr,             DATA, 0x101FFC78u, 0x101FFC78u, 0x101FFC78u)     \
     /* [V] mDoRst's data pointer: set at boot (0x025F1660) to a .bss block   \
      *     whose first word is the reset flag dComIfG_resetToOpening reads   \
      *     and the logo scene clears. Read out of each build's             \
@@ -391,7 +460,41 @@ typedef enum wwhd_region_e {
      *     control that writes mNormalSpeed from a once-a-frame tick is racing\
      *     whatever consumes it. Applying just after this returns is          \
      *     unambiguous. */                                                    \
-    X(daPy_procSwimMove,    TEXT, 0x0242F70Cu, 0x0242F710u, 0x0242F714u)
+    X(daPy_procSwimMove,    TEXT, 0x0242F70Cu, 0x0242F710u, 0x0242F714u)     \
+    /* [V] daPy_lk_c::posMoveFromFootPos, the one place mNormalSpeed becomes \
+     *     movement. It scales +0x6A14 by the slope, stores speedF, splits   \
+     *     that along current.angle.y into speed.x/z, adds gravity and then  \
+     *     moves current.pos - the pipeline described at                     \
+     *     WWHD_DAPY_OFF_NORMAL_SPEED. Called from posMove (0x023FDA70 in    \
+     *     USA) AFTER the current procedure has run, so a value written just \
+     *     before it wins over every procedure, including the idle ones the  \
+     *     three hooks above never see.                                      \
+     *                                                                       \
+     *     Prologue stwu r1,-0x128(r1) (0x9421FED8). The body clobbers r12   \
+     *     before its first branch and r11 on both sides of it, so no caller \
+     *     keeps anything live in them across the call and a stub that uses  \
+     *     r11 is safe. All three builds were read from their images and are \
+     *     byte-identical apart from the +4 (EUR) and +8 (JAP) shifts, each  \
+     *     with the same five call sites in posMove. */                      \
+    X(daPy_posMoveFromFootPos, TEXT, 0x023FCB9Cu, 0x023FCBA0u, 0x023FCBA4u)  \
+    /* [V] daPy_lk_c::draw. Paints the red damage fog into tevStr (fopAc     \
+     *     +0x1B0) while mDamageWaitTimer (+0x3B0) is above zero, so the     \
+     *     invincibility mod zeroes that timer around this call to hide      \
+     *     the flash. Prologue stwu r1,-0x140(r1) (0x9421FEC0); the first    \
+     *     64 bytes are identical in all three builds at the usual +4        \
+     *     (EUR) and +8 (JAP) shifts. */                                     \
+    X(daPy_draw,            TEXT, 0x023D9820u, 0x023D9824u, 0x023D9828u)     \
+    /* [V] cCcS::Move, the hit collision resolve. Its object lists are       \
+     *     complete on entry and zeroed on exit (see d/d_cc_s.h). Prologue   \
+     *     mflr r0 (0x7C0802A6); byte-identical in all three builds, as      \
+     *     is cCcS::Set at 0x0200E240. */                                    \
+    X(cCcS_Move,            TEXT, 0x0200E558u, 0x0200E558u, 0x0200E558u)     \
+    /* [V] dCcMassS_Mng::Chk - the vegetation collision question. Grass,    \
+     *     trees and flowers own no cCcD_Obj; each instance asks this       \
+     *     once a frame whether anything hit a cylinder of the species'     \
+     *     shared size at its position (see d/d_cc_mass_s.h). Prologue      \
+     *     stwu r1,-0xA0(r1) (0x9421FF60) in all three builds. */           \
+    X(dCcMassS_Chk,         TEXT, 0x025170D8u, 0x025170DCu, 0x025170E0u)
 
 typedef struct wwhd_map_t {
 #define X(name, seg, usa, eur, jap) wwhd_addr_t name;

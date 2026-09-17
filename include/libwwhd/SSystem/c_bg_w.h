@@ -131,6 +131,72 @@ static __inline cBgD_Vtx_t* cBgD_getVertex(const cBgD_t* d, int idx) {
     return &WWHD_AT(cBgD_Vtx_t, d->m_v_tbl)[idx];
 }
 
+/**
+ * [V] One collision triangle, stride 0x0A: three vertex indices, the index
+ * of its property record and its group. cBgW::GetTriPnt (0x0200A220) reads
+ * the three indices at +0, +2 and +4 with `* 10`, and the property readers
+ * (0x024EEB94, 0x024EEF58) take the halfword at +6 as the index into the
+ * 0x10-stride property table. Same as GameCube.
+ */
+typedef struct cBgD_Tri_t {
+    /* 0x0 */ u16 vtx0;
+    /* 0x2 */ u16 vtx1;
+    /* 0x4 */ u16 vtx2;
+    /* 0x6 */ u16 id;   /* [V] property record */
+    /* 0x8 */ u16 grp;  /* [P] group */
+} cBgD_Tri_t;
+WWHD_ASSERT_SIZE(cBgD_Tri_t, 0x0A);
+
+/**
+ * [V] One property record, four words, stride 0x10. The two readers above
+ * mask word 0 and word 1 respectively. From the GameCube getters, word 1
+ * holds the wall code (bits 8..11), the special code (12..15), the raw
+ * attribute (16..20) and the ground code (21..25); word 3 holds the
+ * pass-through bits, of which 0x04 is "Link passes through".
+ */
+typedef struct cBgD_Ti_t {
+    /* 0x0 */ u32 mPolyInf0;
+    /* 0x4 */ u32 mPolyInf1;
+    /* 0x8 */ u32 mPolyInf2;
+    /* 0xC */ u32 mPolyInf3;
+} cBgD_Ti_t;
+WWHD_ASSERT_SIZE(cBgD_Ti_t, 0x10);
+
+#define WWHD_BGD_THROUGH_LINK 0x04u /* [P] mPolyInf3 bit: Link passes */
+
+/** [V] One collision triangle, or NULL. */
+static __inline cBgD_Tri_t* cBgD_getTri(const cBgD_t* d, int idx) {
+    if (!cBgD_isInitialised(d) || idx < 0 || idx >= d->m_t_num || !d->m_t_tbl)
+        return (cBgD_Tri_t*)0;
+    return &WWHD_AT(cBgD_Tri_t, d->m_t_tbl)[idx];
+}
+
+/** [V] One property record, or NULL. */
+static __inline cBgD_Ti_t* cBgD_getTi(const cBgD_t* d, int idx) {
+    if (!cBgD_isInitialised(d) || idx < 0 || idx >= d->m_ti_num || !d->m_ti_tbl)
+        return (cBgD_Ti_t*)0;
+    return &WWHD_AT(cBgD_Ti_t, d->m_ti_tbl)[idx];
+}
+
+/**
+ * [V] cBgW, the registered collision object: the vertex table it collides
+ * with (+0x90, already world space; a moving object keeps a transformed
+ * copy there) and the data it was built from (+0x94). Both read by
+ * cBgW::GetTriPnt (0x0200A220), which asserts pm_bgd non-NULL.
+ */
+#define WWHD_BGW_OFF_VTX_TBL 0x90
+#define WWHD_BGW_OFF_BGD     0x94
+
+static __inline cBgD_t* cBgW_getBgd(const void* bgw) {
+    return bgw ? WWHD_AT(cBgD_t, *(const wwhd_gptr_t*)((const u8*)bgw + WWHD_BGW_OFF_BGD))
+               : (cBgD_t*)0;
+}
+
+static __inline cBgD_Vtx_t* cBgW_getVtxTbl(const void* bgw) {
+    return bgw ? WWHD_AT(cBgD_Vtx_t, *(const wwhd_gptr_t*)((const u8*)bgw + WWHD_BGW_OFF_VTX_TBL))
+               : (cBgD_Vtx_t*)0;
+}
+
 
 /* ========================================================================
  * The collision registry

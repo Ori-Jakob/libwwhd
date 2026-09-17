@@ -54,6 +54,23 @@ static __inline u32 dStage_getStageProcID(void) {
     return *WWHD_AT_DATA(u32, wwhd_map->roomProcId);
 }
 
+/** [V] The overlap (fade) singleton the scene manager keeps while a change
+ *  with an overlap is in flight, as a game pointer; 0 otherwise. */
+static __inline u32 fopScnM_getOverlap(void) {
+    if (!wwhd_regionResolved)
+        return 0u;
+    return *WWHD_AT_DATA(u32, wwhd_map->sceneOverlap);
+}
+
+/** [V] Non-zero while a scene change with an overlap is queued or running.
+ *  fopScnM_ChangeReq refuses another one until the request's last phase
+ *  clears this, and the play scene's draw never checks that result. */
+static __inline int fopScnM_isChangeBusy(void) {
+    if (!wwhd_regionResolved)
+        return 0;
+    return *WWHD_AT_DATA(u32, wwhd_map->sceneChangeBusy) != 0u;
+}
+
 #ifdef WWHD_ENABLE_GAME_CALLS
 
 typedef void* (*fopScnM_searchByID_t)(u32 id);
@@ -73,19 +90,33 @@ static __inline void* fopScnM_getStageScene(void) {
     return search(id);
 }
 
-/** [V] Ask the scene manager to replace `scene` with the play scene, with
- *  the arguments the menus use: (7, overlap 0, peek 5, 1). The last is HD's
- *  addition to fopScnM_ChangeReq; it reaches the overlap request (0x025DC344,
- *  a byte at +0x28), and every menu-driven change into play - the file select
- *  (0x025ADC60), the opening scene (0x025AEC74) - passes 1, where the play
- *  scene's own stage changes pass 0. The next-stage record must already be
- *  set. Non-zero when the request was queued. */
-static __inline int fopScnM_changeToPlay(void* scene) {
+/** [V] Ask the scene manager to replace `scene` with the play scene:
+ *  fopScnM_ChangeReq(scene, 7, overlap 0, peek 5, menuStyle). The last is
+ *  HD's addition to ChangeReq; it reaches the overlap request (0x025DC344, a
+ *  byte at +0x28) and from there the wipe manager. The file select
+ *  (0x025ADC60) and the opening scene (0x025AEC74) pass 1, the play scene's
+ *  own stage changes pass 0.
+ *
+ *  Pass 0 when `scene` is a play-type scene that owns a stage - the title
+ *  screen included - so the change follows the play scene's own path. [P]
+ *  With 1 the old scene outlives the creation of the new one, which is how
+ *  a menu keeps drawing during the load. Observed on console: a title-to-
+ *  play change asked for before the title has finished building (no Link
+ *  yet) ends in the new scene's create-phase slot 4 asserting
+ *  d_stage.cpp:4871 stageRsrc != 0, with either value. Wait for the
+ *  title's Link, load the common wave banks first the way the file select
+ *  does (dComIfG_loadCommonBgmBanks, then dComIfG_commonBgmBanksReady) -
+ *  the play scene's create-phase slot 5 waits for them and a fresh boot's
+ *  title never loads them - and stop the BGM (dComIfG_stopBgm) the way the
+ *  play scene's draw does. The next-stage record must already be set.
+ *  Non-zero when the request was queued. */
+static __inline int fopScnM_changeToPlay(void* scene, int menuStyle) {
     fopScnM_changeReq_t change;
     if (!scene || !wwhd_textResolved || !wwhd_regionResolved)
         return 0;
     change = WWHD_FN(fopScnM_changeReq_t, wwhd_map->fopScnM_changeReq);
-    return change(scene, (s16)WWHD_SCENE_PLAY, (s16)WWHD_OVERLAP_FADE, 5, 1);
+    return change(scene, (s16)WWHD_SCENE_PLAY, (s16)WWHD_OVERLAP_FADE, 5,
+                  menuStyle ? 1 : 0);
 }
 
 #endif /* WWHD_ENABLE_GAME_CALLS */

@@ -298,6 +298,58 @@ static __inline void dEvt_setEventRunning(int on) {
     dEvt_setEventMode(on ? (u8)dEvtMode_TALK_e : (u8)dEvtMode_NONE_e);
 }
 
+/** [V] Non-zero while an event end is latched (mbEndProc). It is consumed
+ *  on the next frame that an event is in mode; otherwise it waits for one. */
+static __inline int dEvt_isEndPending(void) {
+    dEvt_control_c* e = dComIfGp_getEvent();
+    return e ? e->mbEndProc != 0 : 0;
+}
+
+/** [V] The storage glitch state: an end latched with no event in mode, so
+ *  the next event to start is ended a frame later. */
+static __inline int dEvt_isStorageArmed(void) {
+    dEvt_control_c* e = dComIfGp_getEvent();
+    return e ? (e->mMode == (u8)dEvtMode_NONE_e && e->mbEndProc != 0) : 0;
+}
+
+/** Latch or drop the end request. Dropping it while an event is in mode
+ *  leaves that event without its scheduled end, so callers guard on mode. */
+static __inline void dEvt_setEndPending(int on) {
+    dEvt_control_c* e = dComIfGp_getEvent();
+    if (e)
+        e->mbEndProc = on ? 1 : 0;
+}
+
+/** [V] The two partner ids (mPt1, mPt2); fpcM_ERROR_PROCESS_ID for none and
+ *  when there is no controller. */
+static __inline void dEvt_getPartners(u32* pt1, u32* pt2) {
+    dEvt_control_c* e = dComIfGp_getEvent();
+    *pt1 = e ? e->mPt1 : fpcM_ERROR_PROCESS_ID;
+    *pt2 = e ? e->mPt2 : fpcM_ERROR_PROCESS_ID;
+}
+
+static __inline void dEvt_setPartners(u32 pt1, u32 pt2) {
+    dEvt_control_c* e = dComIfGp_getEvent();
+    if (e) {
+        e->mPt1 = pt1;
+        e->mPt2 = pt2;
+    }
+}
+
+/** Non-zero if an end request is up in either form, mEventFlag bit 8 (raised
+ *  by dComIfGp_event_reset and not yet latched) or mbEndProc (latched), and
+ *  clears both: what the next check() would have folded together. */
+static __inline int dEvt_takeEndRequest(void) {
+    dEvt_control_c* e = dComIfGp_getEvent();
+    int up;
+    if (!e)
+        return 0;
+    up = (e->mEventFlag & 8u) != 0 || e->mbEndProc != 0;
+    e->mEventFlag = (u16)(e->mEventFlag & ~8u);
+    e->mbEndProc = 0;
+    return up;
+}
+
 static __inline u32 dEvent_getCameraPlay(void) {
     dEvent_manager_c* m = dComIfGp_getEventManager();
     return m ? m->mCameraPlay : 0u;
@@ -525,6 +577,88 @@ static __inline int dComIfGp_reloadStage(void) {
     n->mEnable = 1;
     return 1;
 }
+
+/* --- Stage BGM ------------------------------------------------------------
+ * [V] Every menu-driven start and the play scene's own stage change follow
+ * fopScnM_ChangeReq with one more call: the audio side of the change, which
+ * hands the next-stage record to the audio manager and arms a countdown the
+ * play scene's first create phase waits on. Without it the new stage starts
+ * with the audio manager still tuned to the scene before. Slots
+ * bgmStagePrepare and bgmStageTimer in wwhd_map.h.
+ * ---------------------------------------------------------------------- */
+
+/** [V] The stage BGM countdown: 0 idle, 0x24 just armed, counting down to 1. */
+static __inline u8 dComIfG_getBgmStageTimer(void) {
+    if (!wwhd_regionResolved)
+        return 0;
+    return *WWHD_AT_DATA(u8, wwhd_map->bgmStageTimer);
+}
+
+#ifdef WWHD_ENABLE_GAME_CALLS
+typedef void (*dComIfG_bgmStagePrepare_t)(void* nextStage, int roomNo, int layer);
+
+/** [V] Arm the stage BGM change for the queued stage, the way the file select
+ *  does right after its ChangeReq. Non-zero when the call was made; the game
+ *  itself ignores it while a countdown is already running. */
+static __inline int dComIfG_prepareStageBgm(void) {
+    dComIfG_bgmStagePrepare_t prepare;
+    dStage_nextStage_c* n = dComIfGp_getNextStage();
+    if (!n || !wwhd_textResolved || !wwhd_regionResolved)
+        return 0;
+    prepare = WWHD_FN(dComIfG_bgmStagePrepare_t, wwhd_map->bgmStagePrepare);
+    prepare(n, (int)n->mRoomNo, (int)n->mLayer);
+    return 1;
+}
+
+typedef void (*dComIfG_bgmStopAll_t)(int frames);
+typedef int  (*dComIfG_bgmStageBusy_t)(void);
+
+/** [V] Fade every BGM out over `frames` and clear the audio manager's BGM
+ *  state, as the play scene's draw does with 30 right after its ChangeReq.
+ *  Non-zero when the call was made. */
+static __inline int dComIfG_stopBgm(int frames) {
+    dComIfG_bgmStopAll_t stop;
+    if (!wwhd_textResolved || !wwhd_regionResolved)
+        return 0;
+    stop = WWHD_FN(dComIfG_bgmStopAll_t, wwhd_map->bgmStopAll);
+    stop(frames);
+    return 1;
+}
+
+/** [V] Non-zero while the queued stage's BGM wave banks are still loading;
+ *  the play scene's create-phase slot 5 waits for this to clear. */
+static __inline int dComIfG_isStageBgmBusy(void) {
+    dComIfG_bgmStageBusy_t busy;
+    if (!wwhd_textResolved || !wwhd_regionResolved)
+        return 0;
+    busy = WWHD_FN(dComIfG_bgmStageBusy_t, wwhd_map->bgmStageBusy);
+    return busy();
+}
+
+typedef void (*dComIfG_bgmCommonLoad_t)(void);
+typedef int  (*dComIfG_bgmCommonReady_t)(void);
+
+/** [V] Request the common wave banks every play stage needs, the way the
+ *  file select does on entry. Non-zero when the call was made. */
+static __inline int dComIfG_loadCommonBgmBanks(void) {
+    dComIfG_bgmCommonLoad_t load;
+    if (!wwhd_textResolved || !wwhd_regionResolved)
+        return 0;
+    load = WWHD_FN(dComIfG_bgmCommonLoad_t, wwhd_map->bgmCommonLoad);
+    load();
+    return 1;
+}
+
+/** [V] Non-zero once the common wave banks are resident. The play scene's
+ *  create-phase slot 5 will not pass until they are. */
+static __inline int dComIfG_commonBgmBanksReady(void) {
+    dComIfG_bgmCommonReady_t ready;
+    if (!wwhd_textResolved || !wwhd_regionResolved)
+        return 0;
+    ready = WWHD_FN(dComIfG_bgmCommonReady_t, wwhd_map->bgmCommonReady);
+    return ready();
+}
+#endif /* WWHD_ENABLE_GAME_CALLS */
 
 /* --- The soft reset --------------------------------------------------------
  * [V] mDoRst's data block: the pointer at wwhd_map->resetData is set at boot

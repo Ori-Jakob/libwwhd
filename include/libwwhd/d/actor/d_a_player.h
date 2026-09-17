@@ -32,7 +32,12 @@
  */
 typedef struct daPy_lk_c {
     /* 0x000 */ fopAc_ac_c base;                    /* [V] see f_op_actor.h */
-    /* 0x3AC */ u8         _unk_3AC[0x3B8 - 0x3AC]; /* [?] */
+    /* 0x3AC */ u8         _unk_3AC[0x3B0 - 0x3AC]; /* [?] */
+    /* 0x3B0 */ s16        mDamageWaitTimer;        /* [V] post-hit
+                                                     *     invincibility;
+                                                     *     see the note
+                                                     *     below */
+    /* 0x3B2 */ u8         _unk_3B2[0x3B8 - 0x3B2]; /* [?] */
     /* 0x3B8 */ u32        mFlags;                  /* [V] offset; name [P].
                                                      *     Tested as mFlags &
                                                      *     0x40 at 0x02249058 */
@@ -58,6 +63,7 @@ typedef struct daPy_lk_c {
                                                      *     setter */
 } daPy_lk_c;
 WWHD_ASSERT_OFFSET(daPy_lk_c, base,         0x000);
+WWHD_ASSERT_OFFSET(daPy_lk_c, mDamageWaitTimer, 0x3B0);
 WWHD_ASSERT_OFFSET(daPy_lk_c, mFlags,       0x3B8);
 WWHD_ASSERT_OFFSET(daPy_lk_c, mMaxNormalSpeed, 0x3C4);
 WWHD_ASSERT_OFFSET(daPy_lk_c, mBodyAngle,   0x3D0);
@@ -165,6 +171,57 @@ static __inline daPy_lk_c* daPy_lk_c_getPlayer(void) {
 static __inline f32* daPy_getNormalSpeedPtr(void) {
     daPy_lk_c* link = daPy_lk_c_getPlayer();
     return link ? (f32*)((u8*)link + WWHD_DAPY_OFF_NORMAL_SPEED) : (f32*)0;
+}
+
+/**
+ * [V] daPy_lk_c::mAcch.m_flags (dBgS_Acch), the player's collision switches.
+ *
+ * The same word in all three builds. The chest-open init (USA 0x02421434,
+ * EUR 0x02421438, JAP 0x0242143C) ends with `+0x834 = (+0x834 & ~0x2000) | 4`
+ * and the door-open init (USA 0x02423890, EUR 0x02423894, JAP 0x02423898)
+ * with `+0x834 |= 0x4004`: GameCube's SetWallNone/OffLineCheck and
+ * SetWallNone/OnLineCheckNone with the GameCube bit values, so the three
+ * bits below are read straight off the GameCube enum.
+ *
+ * WALL_NONE and LINE_CHECK_NONE persist until a procedure clears them;
+ * LINE_CHECK is rewritten by every procedure change (commonProcInit). A
+ * chest or door opening cut short by the storage glitch leaves WALL_NONE,
+ * or WALL_NONE | LINE_CHECK_NONE, set with Link in control.
+ */
+/**
+ * [V] daPy_lk_c::mDamageWaitTimer, the post-hit invincibility frames.
+ *
+ * changeDamageProc (USA 0x023FA578, EUR 0x023FA57C, JAP 0x023FA580) opens
+ * with the GameCube decrement: while bit 8 of the mode flags at +0x6A70
+ * (DAMAGE) is clear and the halfword at +0x3B0 is positive it counts down,
+ * and the hit checks further down only run once it reads zero. The
+ * collision update turns the TG bit of Link's hit cylinder off while it
+ * is nonzero, and draw (wwhd_map->daPy_draw) paints the red damage fog
+ * while it is above zero. Holding it above zero is the game's own
+ * invincibility; the flash has to be hidden separately.
+ */
+#define WWHD_DAPY_OFF_DAMAGE_WAIT_TIMER 0x03B0
+
+/**
+ * [V] Link's own hit shapes, from setCollision (USA 0x024076CC): every
+ * cCcS::Set call in it passes one of these member offsets, and they sit
+ * exactly 0x3638 above their GameCube offsets with the GameCube object
+ * sizes (0x130 cylinder, 0x138 capsule, 0x12C sphere) intact. A viewer
+ * reads the shape-attribute vtable at +0x114 of each to learn what the
+ * three shape families look like in the running build.
+ */
+#define WWHD_DAPY_OFF_CC_CYL     0x765C /* [V] dCcD_Cyl mCyl, the hurt cylinder */
+#define WWHD_DAPY_OFF_CC_AT_CPS  0x7B1C /* [V] dCcD_Cps mAtCps[3], the sword */
+#define WWHD_DAPY_OFF_CC_FAN_SPH 0x7FFC /* [V] dCcD_Sph mFanWindSph, the leaf gust */
+
+#define WWHD_DAPY_OFF_ACCH_FLAGS  0x0834
+#define WWHD_ACCH_WALL_NONE       0x0004u /* [V] no wall collision */
+#define WWHD_ACCH_LINE_CHECK      0x2000u /* [V] movement line check on */
+#define WWHD_ACCH_LINE_CHECK_NONE 0x4000u /* [V] movement line check skipped */
+
+static __inline u32* daPy_getAcchFlagsPtr(void) {
+    daPy_lk_c* link = daPy_lk_c_getPlayer();
+    return link ? (u32*)((u8*)link + WWHD_DAPY_OFF_ACCH_FLAGS) : (u32*)0;
 }
 
 /**
