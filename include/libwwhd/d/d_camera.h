@@ -155,14 +155,35 @@ typedef struct dCamera_c {
     /* 0x06E */ u8          _unk_06E[0x07C - 0x06E]; /* [?] */
     /* 0x07C */ u32         mFrameCounter; /* [V] incremented each Run */
     /* 0x080 */ u8          _unk_080[0x100 - 0x080]; /* [?] */
-    /* 0x100 */ u8          mDirtyFlag0;   /* [V] the three are tested together */
+    /* 0x100 */ u8          mDirtyFlag0;   /* [V] the three are tested together.
+                                            *     onModeChange zeroes them; a mode
+                                            *     function raises them once its
+                                            *     blend-in from the previous view
+                                            *     is complete */
     /* 0x101 */ u8          mDirtyFlag1;   /* [V] */
     /* 0x102 */ u8          mDirtyFlag2;   /* [V] */
-    /* 0x103 */ u8          _unk_103[0x11C - 0x103]; /* [?] */
+    /* 0x103 */ u8          _unk_103[0x108 - 0x103]; /* [?] */
+    /* 0x108 */ s32         mModeFrame;    /* [V] frames since the mode was
+                                            *     picked. onModeChange
+                                            *     (0x024FA79C) zeroes it and Run
+                                            *     increments it AFTER the
+                                            *     dispatch, so a mode function
+                                            *     sees 0 exactly once and only
+                                            *     then initialises mModeWork.
+                                            *     See dCam_restartMode(). */
+    /* 0x10C */ s32         _unk_10C;      /* [V] zeroed by onModeChange */
+    /* 0x110 */ u8          mModeBlendIn;  /* [V] onModeChange sets 1; 0 makes
+                                            *     the follow camera snap to its
+                                            *     target instead of blending */
+    /* 0x111 */ u8          _unk_111[0x11C - 0x111]; /* [?] */
     /* 0x11C */ s32         mModeTimer;    /* [V] blend-in counter */
     /* 0x120 */ s32         mPlayerIdx;    /* [V] scales by 0x34 into play */
     /* 0x124 */ u32         mTargetActorID;/* [V] actor the camera follows */
-    /* 0x128 */ u8          _unk_128[0x158 - 0x128]; /* [?] */
+    /* 0x128 */ u8          _unk_128[0x14C - 0x128]; /* [?] */
+    /* 0x14C */ f32         mSightRadius;  /* [V] lock-on sight radius, smoothed
+                                            *     in dCam_calcTrans; zeroed by
+                                            *     onModeChange */
+    /* 0x150 */ u8          _unk_150[0x158 - 0x150]; /* [?] */
     /* 0x158 */ f32         mBlendRate;    /* [V] */
     /* 0x15C */ u8          _unk_15C[0x23C - 0x15C]; /* [?] */
     /* 0x23C */ f32         mFovyBase;     /* [V] divided to form a ratio */
@@ -204,7 +225,11 @@ WWHD_ASSERT_OFFSET(dCamera_c, mWorkEye,       0x050);
 WWHD_ASSERT_OFFSET(dCamera_c, mWorkBank,      0x05C);
 WWHD_ASSERT_OFFSET(dCamera_c, mWorkFovy,      0x060);
 WWHD_ASSERT_OFFSET(dCamera_c, mCalcFlags,     0x068);
+WWHD_ASSERT_OFFSET(dCamera_c, mDirtyFlag0,    0x100);
+WWHD_ASSERT_OFFSET(dCamera_c, mModeFrame,     0x108);
+WWHD_ASSERT_OFFSET(dCamera_c, mModeBlendIn,   0x110);
 WWHD_ASSERT_OFFSET(dCamera_c, mModeTimer,     0x11C);
+WWHD_ASSERT_OFFSET(dCamera_c, mSightRadius,   0x14C);
 WWHD_ASSERT_OFFSET(dCamera_c, mPlayerIdx,     0x120);
 WWHD_ASSERT_OFFSET(dCamera_c, mTargetActorID, 0x124);
 WWHD_ASSERT_OFFSET(dCamera_c, mModeFourCC,    0x37C);
@@ -240,8 +265,43 @@ WWHD_ASSERT_OFFSET(dCamera_c, mParam,         0x8A4);
  * in the style record for as long as it holds the camera. mCalcFlags and
  * mFloorY are recomputed every Run and need no restore; the record is .rodata
  * and global, so it does.
+ *
+ * [V] Handing the camera back is not free either. Run picks the type, mode and
+ * style BEFORE the dispatch, and a change there runs onModeChange (0x024FA79C):
+ * mModeFrame = 0, the three dirty flags = 0, _unk_10C = 0, mModeBlendIn = 1,
+ * mSightRadius = 0 and mFlags &= ~0x211E. The game's mode function then
+ * initialises its mModeWork block on the one dispatch where mModeFrame reads 0,
+ * because Run increments the counter after the call returns. A replacement
+ * that answers that dispatch itself eats the init: the next frame the real
+ * function finds mModeFrame = 1 and the dirty flags clear, takes its blend-in
+ * path, and divides by a blend length it never computed. The follow camera
+ * (0x025028B8) does exactly that with the float at +0x384, and the NaN it
+ * produces reaches dCam_calcTrans, whose cM3dGSph constructor asserts on it
+ * (c_m3d_g_sph.cpp:31). A replacement therefore restarts the mode and calls the
+ * real function on its last dispatch - see dCam_restartMode().
  */
 #define dCamCalc_SURFACE 0x8u   /* [V] lift the eye to the ground or water */
+
+/**
+ * [V] What onModeChange (0x024FA79C) does to the camera, minus the per-mode
+ * extras (mode 14 resets the view, mode 3 clears an attention bit, and a
+ * follow <-> lock-on toggle within one style zeroes mModeBlendIn). Call it
+ * before dispatching the real mode function to make it start over from the
+ * working eye and center as if the mode had just been selected.
+ */
+static __inline void dCam_restartMode(dCamera_c* cam) {
+    cam->mSightRadius = 0.0f;
+    cam->mDirtyFlag0 = 0;
+    cam->mDirtyFlag1 = 0;
+    cam->mDirtyFlag2 = 0;
+    cam->mModeFrame = 0;
+    cam->_unk_10C = 0;
+    cam->mModeBlendIn = 1;
+    cam->mFlags &= ~0x211Eu;
+}
+
+/** [V] The mode function's signature: Run passes the camera and mStyleIdx. */
+typedef int (*dCam_modeFn_t)(dCamera_c* cam, int styleIdx);
 
 /**
  * [V] One style record - the GameCube dCamera__Style: a four-character name,

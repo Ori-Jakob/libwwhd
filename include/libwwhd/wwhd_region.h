@@ -36,9 +36,10 @@ WWHD_SHARED u32                      wwhd_regionResolved = 0;
 #define WWHD_TITLELO_EUR 0x10143600u  /* BCZP */
 #define WWHD_TITLELO_JAP 0x10143400u  /* BCZJ */
 
-/** The Randomizer: a USA build installed under its own title ID, for which
- *  the BCZE table is tried first. Not a retail ID, so no [V] and no assumption
- *  that the image is verbatim: the probe still decides. */
+/** [V] The Randomizer: the BCZE image with code appended, under its own title
+ *  ID. Selected as WWHD_REGION_RANDO, which shares the USA table and differs
+ *  only in textEnd - see the note above wwhd_regionInfo in wwhd_map.h. The
+ *  probe cannot tell it from USA, so the title ID is what picks it. */
 #define WWHD_TITLELO_RANDO 0x10143599u
 
 /** The title the host is running, as OSGetTitleID reports it, or 0 when the
@@ -84,10 +85,10 @@ static __inline wwhd_region_e wwhd_selectRegion(u32 titleIdLo) {
     int i;
 
     if (titleIdLo != 0u) {
-        if (titleIdLo == WWHD_TITLELO_USA ||
-            titleIdLo == WWHD_TITLELO_RANDO) first = WWHD_REGION_USA;
-        else if (titleIdLo == WWHD_TITLELO_EUR) first = WWHD_REGION_EUR;
-        else if (titleIdLo == WWHD_TITLELO_JAP) first = WWHD_REGION_JAP;
+        if (titleIdLo == WWHD_TITLELO_USA)        first = WWHD_REGION_USA;
+        else if (titleIdLo == WWHD_TITLELO_RANDO) first = WWHD_REGION_RANDO;
+        else if (titleIdLo == WWHD_TITLELO_EUR)   first = WWHD_REGION_EUR;
+        else if (titleIdLo == WWHD_TITLELO_JAP)   first = WWHD_REGION_JAP;
     }
     if (first != WWHD_REGION_NONE && wwhd_probeRegion(first)) {
         wwhd_map = wwhd_mapTable[first];
@@ -119,10 +120,11 @@ static __inline const char* wwhd_regionName(void) {
     if (!wwhd_regionResolved || !wwhd_regionInfo_p)
         return "?";
     switch (wwhd_regionInfo_p->region) {
-    case WWHD_REGION_USA: return "USA";
-    case WWHD_REGION_EUR: return "EUR";
-    case WWHD_REGION_JAP: return "JAP";
-    default:              return "?";
+    case WWHD_REGION_USA:   return "USA";
+    case WWHD_REGION_EUR:   return "EUR";
+    case WWHD_REGION_JAP:   return "JAP";
+    case WWHD_REGION_RANDO: return "RANDO";
+    default:                return "?";
     }
 }
 

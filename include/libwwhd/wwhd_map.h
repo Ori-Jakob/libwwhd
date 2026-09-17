@@ -26,6 +26,7 @@ typedef enum wwhd_region_e {
     WWHD_REGION_USA,       /* BCZE */
     WWHD_REGION_EUR,       /* BCZP */
     WWHD_REGION_JAP,       /* BCZJ */
+    WWHD_REGION_RANDO,     /* the Randomizer: BCZE with code appended, USA table */
     WWHD_REGION_COUNT
 } wwhd_region_e;
 
@@ -574,15 +575,26 @@ static const u32 wwhd_probeMask[WWHD_PROBE_WORDS] = {
     0xFFFFFFFFu, 0xFFFF0000u, 0xFFFF0000u, 0xFFFFFFFFu, 0xFFFFFFFFu
 };
 
+/**
+ * [V] The Randomizer (wwhd_rando 1.2.0, title 0005000010143599) is the BCZE
+ * image with 0x2E08 bytes of code appended to .text and 360 in-place patches
+ * below 0x02700000; .rodata, .data and .bss keep their USA extents. Every one
+ * of the 96 slots was compared against USA in Ghidra on 2026-09-17, whole
+ * function bodies for the TEXT ones, and all are byte-identical, as are all
+ * 48 sites the Cemu graphics pack patches. So the Randomizer reuses the USA
+ * table outright; only textEnd differs. The probe cannot tell the two apart
+ * (same JUT_ShowAssert at the same address), the title ID does.
+ */
 static const wwhd_regionInfo_t wwhd_regionInfo[WWHD_REGION_COUNT] = {
-    { WWHD_REGION_NONE, "",     0u,          0u,          0u,          0,  0u      },
-    { WWHD_REGION_USA,  "BCZE", 0x028F87F3u, 0x104DA1C7u, 0x0273AA24u,  0, 0x62F8u },
-    { WWHD_REGION_EUR,  "BCZP", 0x028F90B3u, 0x104DA2C7u, 0x0273B2E0u,  0, 0x62F8u },
-    { WWHD_REGION_JAP,  "BCZJ", 0x028F92D3u, 0x104DA3C7u, 0x0273B510u, -4, 0x62F0u }
+    { WWHD_REGION_NONE,  "",     0u,          0u,          0u,          0,  0u      },
+    { WWHD_REGION_USA,   "BCZE", 0x028F87F3u, 0x104DA1C7u, 0x0273AA24u,  0, 0x62F8u },
+    { WWHD_REGION_EUR,   "BCZP", 0x028F90B3u, 0x104DA2C7u, 0x0273B2E0u,  0, 0x62F8u },
+    { WWHD_REGION_JAP,   "BCZJ", 0x028F92D3u, 0x104DA3C7u, 0x0273B510u, -4, 0x62F0u },
+    { WWHD_REGION_RANDO, "BCZE", 0x028FB5FBu, 0x104DA1C7u, 0x0273AA24u,  0, 0x62F8u }
 };
 
 static const wwhd_map_t* const wwhd_mapTable[WWHD_REGION_COUNT] = {
-    (const wwhd_map_t*)0, &wwhd_map_usa, &wwhd_map_eur, &wwhd_map_jap
+    (const wwhd_map_t*)0, &wwhd_map_usa, &wwhd_map_eur, &wwhd_map_jap, &wwhd_map_usa
 };
 
 #endif /* LIBWWHD_MAP_H */
