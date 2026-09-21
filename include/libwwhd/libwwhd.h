@@ -59,6 +59,7 @@
 #include "libwwhd/d/d_figure.h"
 #include "libwwhd/d/d_stage.h"
 #include "libwwhd/d/d_stage_names.h"
+#include "libwwhd/d/d_stage_room.h"
 #include "libwwhd/d/d_camera.h"
 #include "libwwhd/d/d_demo.h"
 #include "libwwhd/d/d_kankyo.h"

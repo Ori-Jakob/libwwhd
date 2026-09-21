@@ -73,6 +73,16 @@ typedef enum wwhd_region_e {
      *     the room number from here. */                                      \
     X(roomStayNo,           DATA, 0x1047E6C8u, 0x1047E6C8u, 0x1047E6C0u)      \
     X(roomProcGet,          TEXT, 0x025D98E8u, 0x025D98A8u, 0x025D98D4u)       \
+    /* [V] dStage_roomControl_c::loadRoom(this, count, rooms): the room      \
+     *     streaming step the player's room check (USA 0x025C35E8) runs on  \
+     *     the RTBL entry of the room under Link. Walks the 64 status       \
+     *     records at stride 0x22C; see d_stage_room.h. Only caller is the  \
+     *     room check in every build. */                                     \
+    X(dStage_loadRoom,      TEXT, 0x025C34ACu, 0x025C346Cu, 0x025C3498u)       \
+    /* [V] dStage_roomControl_c::zoneCountCheck(this, roomNo): the zone      \
+     *     bookkeeping plus setStayNo (USA 0x025C1070) the room check runs  \
+     *     when the ground polygon's room differs from mStayNo. */           \
+    X(dStage_zoneCountCheck, TEXT, 0x025C33E8u, 0x025C33A8u, 0x025C33D4u)      \
                                                                                \
     /* --- d_camera --- */                                                     \
     /* [V] s32 count, then dCamera_style_c[count]. dCamParam_c::Change       \
