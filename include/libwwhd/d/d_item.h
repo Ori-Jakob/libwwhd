@@ -124,7 +124,9 @@ typedef enum dItemNo_e {
     dItemNo_ELIXIR_SOUP_HALF    = 0x54, /* [P] flag only; name GC */
     dItemNo_ELIXIR_SOUP         = 0x55, /* [P] */
     dItemNo_WATER               = 0x56, /* [P] */
-    dItemNo_FAIRY               = 0x57, /* [P] */
+    dItemNo_FAIRY               = 0x57, /* [V] changeDeadProc (USA 0x023F7820)
+                                         *     checks a bottle for 0x57 and
+                                         *     swaps it for 0x50 on revival */
     dItemNo_FOREST_FIREFLY      = 0x58, /* [P] */
     dItemNo_FOREST_WATER        = 0x59, /* [P] */
 

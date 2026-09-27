@@ -225,6 +225,45 @@ static __inline u32* daPy_getAcchFlagsPtr(void) {
 }
 
 /**
+ * [V] dBgS_Acch::m_ground_h of Link's mAcch: the height of the highest floor
+ * polygon under him, found by his own ground check every frame however far
+ * below it is, or WWHD_ACCH_NO_GROUND when there is none. GameCube keeps it
+ * 0x6C past m_flags; HD's slow-fall procedure (USA 0x0241DF20, the GameCube
+ * procSlowFall) reads `current.pos.y - *(f32*)(this + 0x8A0)`, which is
+ * exactly that. Valid after the player's execute; stale while Link is not
+ * spawned. */
+#define WWHD_DAPY_OFF_ACCH_GROUND_H 0x08A0
+#define WWHD_ACCH_NO_GROUND         (-1.0e9f)
+
+static __inline f32 daPy_getGroundHeight(void) {
+    daPy_lk_c* link = daPy_lk_c_getPlayer();
+    return link ? *(f32*)((u8*)link + WWHD_DAPY_OFF_ACCH_GROUND_H) : WWHD_ACCH_NO_GROUND;
+}
+
+/**
+ * [V] The fall-start bookkeeping: GameCube's m3688 (the position a fall
+ * began at) and m35F0 / m35F4 (the heights fall damage and the fall voice
+ * measure from). commonProcInit (USA 0x023DFDD8) sets all three from
+ * current.pos when a procedure without MIDAIR hands over to one with it:
+ * +0x7290..+0x7298 get the position, +0x6A48 and +0x6A4C its y.
+ *
+ * A teleport that leaves Link mid-air in a fall that began elsewhere lands
+ * him with the height difference as fall damage. Resetting these to where
+ * he is placed makes the landing a zero-height one. */
+#define WWHD_DAPY_OFF_FALL_START_POS 0x7290
+#define WWHD_DAPY_OFF_FALL_START_Y0  0x6A48
+#define WWHD_DAPY_OFF_FALL_START_Y1  0x6A4C
+
+static __inline void daPy_resetFallStart(const cXyz* pos) {
+    daPy_lk_c* link = daPy_lk_c_getPlayer();
+    if (!link || !pos)
+        return;
+    *(cXyz*)((u8*)link + WWHD_DAPY_OFF_FALL_START_POS) = *pos;
+    *(f32*)((u8*)link + WWHD_DAPY_OFF_FALL_START_Y0) = pos->y;
+    *(f32*)((u8*)link + WWHD_DAPY_OFF_FALL_START_Y1) = pos->y;
+}
+
+/**
  * [V] daPy_lk_c::mMaxNormalSpeed: what mNormalSpeed is ramped toward.
  *
  * Three functions agree on +0x3C4. setNormalSpeedF (0x02416230, the GameCube
