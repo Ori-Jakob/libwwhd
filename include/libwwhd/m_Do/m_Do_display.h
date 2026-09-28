@@ -12,10 +12,11 @@
  * and the choice is a single word in the display manager - see wwhd_map
  * uiDisplayMgr for how it was found and what else lives in that object.
  *
- * 0 and 3 are two further targets the setter accepts and were not chased, so
- * they are reported as-is rather than folded into TV or DRC. Anything outside
- * 0..3 is reported as WWHD_DISPLAY_MODE_UNKNOWN, which is also what a caller
- * gets before the manager exists.
+ * The same word also picks the controller: 0 is the Pro Controller alone and 3
+ * the GamePad merged with any Pro Controller connected when it was set (see
+ * wwhd_map dPad_setMode). Anything outside 0..3 is reported as
+ * WWHD_DISPLAY_MODE_UNKNOWN, which is also what a caller gets before the
+ * manager exists.
  *
  * IMPORTANT, from hardware: normal play on the TV reads **3**, not 1. The 1 and
  * 2 written by ::StateID_ChangeToTvMode and ::StateID_ChangeToDrcMode are what
@@ -28,8 +29,10 @@
  * if 2 were transient. That is behavioural evidence, not an instrumented read.
  */
 #define WWHD_DISPLAY_MODE_UNKNOWN 0xFFFFFFFFu
+#define WWHD_DISPLAY_MODE_PRO     0u  /* [V] Pro Controller only    */
 #define WWHD_DISPLAY_MODE_TV      1u  /* [V] playing on the TV      */
 #define WWHD_DISPLAY_MODE_DRC     2u  /* [V] playing on the GamePad */
+#define WWHD_DISPLAY_MODE_MERGED  3u  /* [V] GamePad + Pro, see dPad_setMode */
 
 /** [V] Display mode word, relative to the manager. USA and EUR agree. */
 #define WWHD_DISPLAY_MODE_OFS 0x1D0
@@ -67,5 +70,33 @@ static __inline int wwhd_isPlayingOnGamePad(void) {
 static __inline int wwhd_isTvShowingGame(void) {
     return wwhd_getDisplayMode() != WWHD_DISPLAY_MODE_DRC;
 }
+
+/** [V] Controller-choice byte in the padChoice object: 1 GamePad, 0 Pro. */
+#define WWHD_PADCHOICE_OFF_CONTROLLER 0x1C
+
+/** [V] Record which controller "pressed Start", as the title actor does. */
+static __inline void wwhd_setChosenController(int gamePad) {
+    u32 p;
+    if (!wwhd_regionResolved)
+        return;
+    p = *WWHD_AT_DATA(u32, wwhd_map->padChoice);
+    if (p)
+        *WWHD_AT(u8, p + WWHD_PADCHOICE_OFF_CONTROLLER) = gamePad ? 1u : 0u;
+}
+
+#ifdef WWHD_ENABLE_GAME_CALLS
+typedef int (*dPad_setMode_t)(void* mgr, u32 mode);
+
+/** [V] Bind the game's input to a controller, the way the file select does
+ *  after its controller choice. Non-zero when the device was bound; asking
+ *  for WWHD_DISPLAY_MODE_PRO with no Pro Controller connected fails and
+ *  leaves the mode alone. */
+static __inline int wwhd_setPadMode(u32 mode) {
+    void* mgr = wwhd_getDisplayMgr();
+    if (!mgr || !wwhd_textResolved || mode > WWHD_DISPLAY_MODE_MERGED)
+        return 0;
+    return WWHD_FN(dPad_setMode_t, wwhd_map->dPad_setMode)(mgr, mode);
+}
+#endif /* WWHD_ENABLE_GAME_CALLS */
 
 #endif /* LIBWWHD_M_DO_DISPLAY_H */

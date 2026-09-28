@@ -416,13 +416,12 @@ typedef enum wwhd_region_e {
      *     read it, so it is the one lever that reaches every message class - \
      *     see dMsgBox_setInput and dMsg_getInputRecord().                    \
      *                                                                        \
-     *     Manager + 0x1D0 is the display mode: 1 while the game plays on the \
-     *     TV, 2 while it plays on the GamePad. 0 and 3 are two further       \
-     *     targets the same setter accepts. Written by the setter at USA      \
-     *     0x02618094 / EUR 0x02618798, whose only two callers are the        \
-     *     ::StateID_ChangeToTvMode and ::StateID_ChangeToDrcMode state       \
-     *     functions - identical apart from passing 1 and 2 - and read back by\
-     *     the per-frame device pass at USA 0x02617AF4, which switches on the \
+     *     Manager + 0x1D0 is the pad mode: 1 while the game plays on the TV, \
+     *     2 while it plays on the GamePad, 0 for the Pro Controller and 3 for\
+     *     the GamePad merged with a Pro Controller. Written by dPad_setMode, \
+     *     whose callers include ::StateID_ChangeToTvMode and                 \
+     *     ::StateID_ChangeToDrcMode (passing 1 and 2), and read back by the  \
+     *     per-frame device pass at USA 0x02617AF4, which switches on the     \
      *     same field. Offset confirmed in USA and EUR; treat a value outside \
      *     0..3 as unknown rather than trusting it.                           \
      *                                                                        \
@@ -505,7 +504,26 @@ typedef enum wwhd_region_e {
      *     once a frame whether anything hit a cylinder of the species'     \
      *     shared size at its position (see d/d_cc_mass_s.h). Prologue      \
      *     stwu r1,-0xA0(r1) (0x9421FF60) in all three builds. */           \
-    X(dCcMassS_Chk,         TEXT, 0x025170D8u, 0x025170DCu, 0x025170E0u)
+    X(dCcMassS_Chk,         TEXT, 0x025170D8u, 0x025170DCu, 0x025170E0u)     \
+    /* [V] The pad mode setter, (uiDisplayMgr object, mode) -> 1 when the    \
+     *     device was bound. Writes mode to +0x1D0: 0 Pro Controller (only   \
+     *     if one is connected), 1/2 GamePad on TV/off-TV, 3 GamePad merged  \
+     *     with any Pro Controller connected at the time of the call. The    \
+     *     title and the file select set 3; the file select's controller     \
+     *     choice (USA 0x0270AB10) sets 0 or 1 before starting a game; the   \
+     *     play scene's GamePad-screen init (USA 0x02713368) turns a 3 into  \
+     *     1. Found by the 0x2018/0x1174 Pro Controller probe in its body.   */\
+    X(dPad_setMode,         TEXT, 0x02618094u, 0x02618798u, 0x02618C6Cu)     \
+    /* [V] Pointer to the controller-choice object. +0x1C is the controller  \
+     *     that pressed Start on the title (1 GamePad, 0 Pro Controller),    \
+     *     stored by the title actor (USA 0x024B87A4) and read as the default\
+     *     of the file select's controller choice (USA 0x026D4EE0). Read out \
+     *     of the title actor's `lwz r31` in each build. */                  \
+    X(padChoice,            DATA, 0x101F8378u, 0x101F8390u, 0x101F83C0u)     \
+    /* [V] Pointer to the archive loader: dComIfG_syncStageRes (USA          \
+     *     0x02523D08) and the stage request (0x02523A04) pass it. See       \
+     *     m_Do/m_Do_res_loader.h for the queue layout. */                   \
+    X(resLoader,            DATA, 0x101F4F54u, 0x101F4F6Cu, 0x101F4F9Cu)
 
 typedef struct wwhd_map_t {
 #define X(name, seg, usa, eur, jap) wwhd_addr_t name;

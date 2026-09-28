@@ -23,11 +23,12 @@
  *   1  the prompt is up and Start is accepted - the pad word is tested here
  *      and 0x024B7CE4 moves the state to 2 on a press;
  *   3  it asks the stage scene for scene 9, the file select, and sets +0x3B8.
- * Anything below 1 is the logo still loading or animating. The game accepts
- * Start in state 1 and nowhere else, which makes that state the safe moment
- * to start a game from the title by other means: before it the loader thread
- * is still fetching the title's own archives, and a play scene created then
- * asserts d_stage.cpp:4871 stageRsrc != 0 in its create-phase slot 4.
+ * Anything below 1 is the logo still loading or animating; a press there
+ * (the logo update 0x024B8670, pad mask 0x861B) skips straight to 3. Waiting for 1
+ * used to be how a game was started from the title without the d_stage.cpp:4871
+ * stageRsrc assert, but only because the loader has gone idle by then - the
+ * real requirement is a settled loader when the new scene starts requesting,
+ * see m_Do/m_Do_res_loader.h.
  */
 #define WWHD_PROC_TITLE             0x01BC
 #define WWHD_DATITLE_OFF_LOGO       0x3B4

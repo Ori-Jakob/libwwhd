@@ -40,6 +40,7 @@
 
 #include "libwwhd/m_Do/m_Do_display.h"
 #include "libwwhd/m_Do/m_Do_audio.h"
+#include "libwwhd/m_Do/m_Do_res_loader.h"
 
 #include "libwwhd/SSystem/c_bg_w.h"
 #include "libwwhd/SSystem/c_counter.h"

@@ -101,10 +101,12 @@ static __inline void* fopScnM_getStageScene(void) {
  *  screen included - so the change follows the play scene's own path. [P]
  *  With 1 the old scene outlives the creation of the new one, which is how
  *  a menu keeps drawing during the load. Observed on console: a title-to-
- *  play change asked for before the title has finished building (no Link
- *  yet) ends in the new scene's create-phase slot 4 asserting
- *  d_stage.cpp:4871 stageRsrc != 0, with either value. Wait for the
- *  title's Link, load the common wave banks first the way the file select
+ *  play change asked for while a fresh boot's title is still loading ends
+ *  in the new scene's create-phase slot 4 asserting d_stage.cpp:4871
+ *  stageRsrc != 0, with either value - the title's archives are released
+ *  late and the stage archive fails to register (m_Do/m_Do_res_loader.h),
+ *  so hold the new scene's phase_1 until wwhd_resLoaderSettled(). Wait for
+ *  the title's Link, load the common wave banks first the way the file select
  *  does (dComIfG_loadCommonBgmBanks, then dComIfG_commonBgmBanksReady) -
  *  the play scene's create-phase slot 5 waits for them and a fresh boot's
  *  title never loads them - and stop the BGM (dComIfG_stopBgm) the way the
