@@ -57,8 +57,10 @@ enum dCamAlg_e {
     dCamAlg_TOWER          = 7,   /* [V] slot; name [I]. fn 0x0250B30C */
     dCamAlg_RIDE           = 8,   /* [V] the boat camera. fn 0x0250D4E8,
                                    *     which is the dCam_rideCamera slot */
-    dCamAlg_HUNG           = 9,   /* [V] slot; name [I]. fn 0x0250EF98 */
-    dCamAlg_MANUAL         = 10,  /* [V] slot; name [I]. fn 0x0250FDC8 */
+    dCamAlg_HUNG           = 9,   /* [V] writes mModeFourCC 'HUNG'. fn 0x0250EF98 */
+    dCamAlg_MANUAL         = 10,  /* [V] the right-stick camera: every "MMxx"
+                                   *     style, reached through camera mode
+                                   *     12. fn 0x0250FDC8 (EUR +4, JAP +8) */
     dCamAlg_EVENT          = 11,  /* [V] slot; name [I]. fn 0x024FF164 */
     dCamAlg_CRAWL          = 12,  /* [V] slot; name [I]. fn 0x02511200 */
     dCamAlg_HOOKSHOT       = 13,  /* [V] slot; name [I]. fn 0x02511B5C */
@@ -183,9 +185,22 @@ typedef struct dCamera_c {
     /* 0x14C */ f32         mSightRadius;  /* [V] lock-on sight radius, smoothed
                                             *     in dCam_calcTrans; zeroed by
                                             *     onModeChange */
-    /* 0x150 */ u8          _unk_150[0x158 - 0x150]; /* [?] */
-    /* 0x158 */ f32         mBlendRate;    /* [V] */
-    /* 0x15C */ u8          _unk_15C[0x23C - 0x15C]; /* [?] */
+    /* 0x150 */ u8          _unk_150[0x154 - 0x150]; /* [?] */
+    /* 0x154 */ f32         mManualYawVel; /* [V] MANUAL's filtered stick X;
+                                            *     Run zeroes it entering a
+                                            *     first-person style */
+    /* Pad copy made by updatePad (USA 0x024F9BF4) before the dispatch. The
+     * mode functions read these, never the pad; flag 0x800000 in mFlags
+     * zeroes the right stick and 0x1000000 the left. */
+    /* 0x158 */ f32         mStickMainX;   /* [V] */
+    /* 0x15C */ f32         mStickMainY;   /* [V] */
+    /* 0x160 */ f32         mStickMainValue; /* [V] magnitude */
+    /* 0x164 */ f32         mStickMainDelta[3]; /* [V] x, y, value */
+    /* 0x170 */ f32         mStickCX;      /* [V] right stick X, NEGATED */
+    /* 0x174 */ f32         mStickCY;      /* [V] right stick Y, up is + */
+    /* 0x178 */ f32         mStickCValue;  /* [V] magnitude */
+    /* 0x17C */ f32         mStickCDelta[3]; /* [V] x, y, value */
+    /* 0x188 */ u8          _unk_188[0x23C - 0x188]; /* [?] */
     /* 0x23C */ f32         mFovyBase;     /* [V] divided to form a ratio */
     /* 0x240 */ f32         mDistCur;      /* [V] */
     /* 0x244 */ u8          _unk_244[0x318 - 0x244]; /* [?] */
@@ -207,7 +222,17 @@ typedef struct dCamera_c {
                                             *     forces sub-mode 2, bit 20
                                             *     forces the dirty flags */
     /* 0x514 */ s32         mStyleIdx;     /* [V] indexes the style table */
-    /* 0x518 */ u8          _unk_518[0x844 - 0x518]; /* [?] */
+    /* 0x518 */ u8          _unk_518[0x7DC - 0x518]; /* [?] */
+    /* 0x7DC */ f32         mManualExitDist; /* [V] nextMode (USA 0x024FA9C8)
+                                            *     leaves the manual mode once
+                                            *     the stick is released AND
+                                            *     mDirection.mRadius is below
+                                            *     this; nothing in the camera
+                                            *     code writes it after setup */
+    /* 0x7E0 */ f32         mManualEnterValue; /* [V] right-stick magnitude
+                                            *     above which nextMode picks
+                                            *     the manual mode */
+    /* 0x7E4 */ u8          _unk_7E4[0x844 - 0x7E4]; /* [?] */
     /* 0x844 */ f32         mFloorMargin;  /* [V] dCamBGChk_c::mFloorMargin,
                                             *     32.0 on GameCube */
     /* 0x848 */ u8          _unk_848[0x8A4 - 0x848]; /* [?] */
@@ -230,6 +255,12 @@ WWHD_ASSERT_OFFSET(dCamera_c, mModeFrame,     0x108);
 WWHD_ASSERT_OFFSET(dCamera_c, mModeBlendIn,   0x110);
 WWHD_ASSERT_OFFSET(dCamera_c, mModeTimer,     0x11C);
 WWHD_ASSERT_OFFSET(dCamera_c, mSightRadius,   0x14C);
+WWHD_ASSERT_OFFSET(dCamera_c, mManualYawVel,  0x154);
+WWHD_ASSERT_OFFSET(dCamera_c, mStickMainX,    0x158);
+WWHD_ASSERT_OFFSET(dCamera_c, mStickCX,       0x170);
+WWHD_ASSERT_OFFSET(dCamera_c, mStickCValue,   0x178);
+WWHD_ASSERT_OFFSET(dCamera_c, mManualExitDist, 0x7DC);
+WWHD_ASSERT_OFFSET(dCamera_c, mManualEnterValue, 0x7E0);
 WWHD_ASSERT_OFFSET(dCamera_c, mPlayerIdx,     0x120);
 WWHD_ASSERT_OFFSET(dCamera_c, mTargetActorID, 0x124);
 WWHD_ASSERT_OFFSET(dCamera_c, mModeFourCC,    0x37C);
@@ -333,6 +364,40 @@ WWHD_ASSERT_SIZE(dCamera_style_c, 0x84);
 #define dCamStyleFlag_BUMP_FULL    0x0001u  /* mCalcFlags := 0x3F */
 #define dCamStyleFlag_BUMP_BASIC   0x0002u  /* mCalcFlags := 0x0F, if FULL is clear */
 #define dCamStyleFlag_LOCKON_SIGHT 0x0400u  /* mCalcFlags |= 0x40 */
+
+/**
+ * [V] The mParam[] indices dCamAlg_MANUAL reads, from its body (USA
+ * 0x0250FDC8). Stick Y (mStickCY, curved to -1..1) moves four values at once,
+ * each by -(y * RATE) a frame and clamped to [LO, HI] - a pair given high
+ * first flips the direction: the center's height above the player, the
+ * distance, the pitch in degrees and the fovy. That coupling is the stock
+ * "up zooms in low, down zooms out high". Stick X is filtered into
+ * dCamera_c::mManualYawVel and turned into yaw at YAW_RATE, negated when the
+ * game's invert-X option is on. On entry the four values start from the view
+ * the camera already had, clamped into their ranges.
+ *
+ * Every manual style sits in the global style table, so these are shared by
+ * all cameras and survive stage changes; a writer restores them itself.
+ */
+#define dCamManualPrm_HEIGHT_LO    6
+#define dCamManualPrm_HEIGHT_HI    7
+#define dCamManualPrm_HEIGHT_RATE  9
+#define dCamManualPrm_DIST_LO      11
+#define dCamManualPrm_DIST_HI      12
+#define dCamManualPrm_DIST_RATE    14
+#define dCamManualPrm_PITCH_LO     16
+#define dCamManualPrm_PITCH_HI     17
+#define dCamManualPrm_PITCH_RATE   19
+#define dCamManualPrm_YAW_RATE     24
+#define dCamManualPrm_FOVY_LO      26
+#define dCamManualPrm_FOVY_HI      27
+#define dCamManualPrm_FOVY_RATE    29
+
+/** [V] The boat's manual style, used by the Boat and BoatBattle types only. */
+#define dCamStyle_NAME_BOAT_MANUAL 0x4D4D3037u  /* "MM07" */
+
+/** [V] The follow camera's fovy, FN01 mParam[25]; the gameplay default. */
+#define dCam_DEFAULT_FOVY 60.0f
 
 /**
  * [V] One algorithm-table record.
@@ -452,6 +517,26 @@ WWHD_ASSERT_OFFSET(dCam_view_t, mEye,     0x10);
 WWHD_ASSERT_OFFSET(dCam_view_t, mBank,    0x34);
 WWHD_ASSERT_OFFSET(dCam_view_t, mProjMtx, 0x38);
 WWHD_ASSERT_SIZE  (dCam_view_t, 0x78);
+
+/** [V] Method offsets in wwhd_map->camProcMethods. */
+#define WWHD_CAMPROC_METHOD_EXECUTE 0x08
+#define WWHD_CAMPROC_METHOD_DRAW    0x10
+
+/** [V] A camera process method: takes the process, returns non-zero. */
+typedef int (*dCam_procMethod_t)(void* process);
+
+/** [V] LINK-TIME address of one camera process method slot, or 0 before a
+ *  region is selected; for a data swap. */
+static __inline wwhd_addr_t dCam_getProcMethodSlotAddr(u32 method) {
+    return wwhd_regionResolved ? wwhd_map->camProcMethods + method : 0u;
+}
+
+/** [V] The function currently in one camera process method slot, or 0. */
+static __inline u32 dCam_getProcMethod(u32 method) {
+    if (!wwhd_regionResolved)
+        return 0u;
+    return *WWHD_AT_DATA(u32, wwhd_map->camProcMethods + method);
+}
 
 /** [V] The camera process a dCamera_c lives in, or NULL. */
 static __inline u8* dCam_getProcess(dCamera_c* cam) {

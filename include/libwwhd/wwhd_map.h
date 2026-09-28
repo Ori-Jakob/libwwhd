@@ -523,7 +523,13 @@ typedef enum wwhd_region_e {
     /* [V] Pointer to the archive loader: dComIfG_syncStageRes (USA          \
      *     0x02523D08) and the stage request (0x02523A04) pass it. See       \
      *     m_Do/m_Do_res_loader.h for the queue layout. */                   \
-    X(resLoader,            DATA, 0x101F4F54u, 0x101F4F6Cu, 0x101F4F9Cu)
+    X(resLoader,            DATA, 0x101F4F54u, 0x101F4F6Cu, 0x101F4F9Cu)     \
+    /* [V] The camera process's method table: create, delete, execute,      \
+     *     isDelete, draw. execute (+0x08, USA 0x024FFA3C) runs Run and      \
+     *     view_setup, so the view record is final when it returns; draw     \
+     *     (+0x10, USA 0x024FFC40) builds both projections from it. Found as \
+     *     the only data xref to camera_draw in each build. */               \
+    X(camProcMethods,       DATA, 0x101D5538u, 0x101D5538u, 0x101D5558u)
 
 typedef struct wwhd_map_t {
 #define X(name, seg, usa, eur, jap) wwhd_addr_t name;
