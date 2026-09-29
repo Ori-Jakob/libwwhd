@@ -533,7 +533,29 @@ typedef enum wwhd_region_e {
     /* [V] dComIfG_getStageRes(arc, file): a file of the current stage's    \
      *     archive (play +0x5134 names the stage), or NULL. The first call   \
      *     in dStage_InitCreate, whose assert is d_stage.cpp:4871. */        \
-    X(dComIfG_getStageRes,  TEXT, 0x0252447Cu, 0x02524480u, 0x02524480u)
+    X(dComIfG_getStageRes,  TEXT, 0x0252447Cu, 0x02524480u, 0x02524480u)     \
+    /* [V] dComIfG_syncStageRes(arc): 1 while the current stage's arc is    \
+     *     queued or loading, 0 once it is out of the loader's ring. The     \
+     *     first call of play-scene phase slot 4 (USA 0x025B168C). */        \
+    X(dComIfG_syncStageRes, TEXT, 0x02523D08u, 0x02523D0Cu, 0x02523D0Cu)     \
+    /* [V] The loader's request, (loader, path, arc, front) -> 0 when the    \
+     *     ring is full. Refcounts the "path_arc" hash and queues the        \
+     *     archive only if the hash was not counted yet. */                  \
+    X(resLoader_request,    TEXT, 0x0260D618u, 0x0260DD1Cu, 0x0260E1F0u)     \
+    /* [V] (loader, hash): drops the hash from the done list and the         \
+     *     refcount map, whatever its count. */                              \
+    X(resLoader_forget,     TEXT, 0x0260F61Cu, 0x0260FD20u, 0x026101F4u)     \
+    /* [V] The archive key hash, (text, length) -> u32. */                   \
+    X(resHash,              TEXT, 0x0273B264u, 0x0273BB20u, 0x0273BD50u)     \
+    /* [V] The vtable of a const sead::SafeString; the loader calls its      \
+     *     +0x14 slot before each read. Same address in all three builds. */ \
+    X(safeStringVtbl,       DATA, 0x1004B8C0u, 0x1004B8C0u, 0x1004B8C0u)     \
+    /* [V] Pointer to the archive data store: its two read threads and the   \
+     *     "path_arc" file map every archive registers from. */              \
+    X(resStore,             DATA, 0x101F4F7Cu, 0x101F4F94u, 0x101F4FC4u)     \
+    /* [V] Pointer to the layout loader. Its thread loads the title, opening \
+     *     and file select layouts (USA 0x026FBC98) through resStore. */     \
+    X(layoutLoader,         DATA, 0x101F7274u, 0x101F728Cu, 0x101F72BCu)
 
 typedef struct wwhd_map_t {
 #define X(name, seg, usa, eur, jap) wwhd_addr_t name;
