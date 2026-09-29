@@ -44,8 +44,17 @@
  *                    the chain and f12 (= 0x100116C4) up it, into 300 records.
  *                    r8, r9, f0, f8-f10, f13, cr0 and 0x18/0x1C(r1) are free;
  *                    CTR is unused by the draw.
+ *   hsDrawPitchSite + 4  `srawi r0,r0,3` 0x7C001E70 (USA/EUR 0x02176B30, JAP
+ *                    0x02176B34), which reads only r0: a hook there sees the
+ *                    pitch in f11 and can change f11, f12 and r31 before the
+ *                    step vector is built. r11 (the sine table) is live across
+ *                    it and equals r12 - r10 there. Stock forces r31 >= 1 after.
  */
 #define WWHD_HS_STICK_WORD       0x552306F6u
+#define WWHD_HS_DRAW_SHIFT_WORD  0x7C001E70u
+#define WWHD_HS_STICK_BIT        0x10u   /* info word 3 */
+#define WWHD_HS_ATTR_LAVA        6u      /* (info word 1 >> 16) & 0x1F */
+#define WWHD_HS_ATTR_VOID        8u
 #define WWHD_HS_SIGHT_LIS_WORD   0x3D001003u
 #define WWHD_HS_SIGHT_LFS_WORD   0xC02859B8u
 #define WWHD_HS_CLAMP_WORD       0x3980012Cu
