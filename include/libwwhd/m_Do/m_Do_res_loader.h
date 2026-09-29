@@ -25,6 +25,18 @@
  * 0x0260C290 ignores it), the archive is still popped as done, and the first
  * lookup of it comes back NULL: this is the d_stage.cpp:4871 stageRsrc assert
  * seen when a game is started from a title screen that is still loading.
+ *
+ * [V] The second way to the same assert: every stage archive's heap is made
+ * inside the resource manager's two stage heaps (+0x2048/+0x204C, created on
+ * demand by USA 0x02607F80/0x02604094), and deleting ANY resource named
+ * "Stage" destroys both with all their children (USA 0x0260757C ->
+ * 0x026072AC/0x02607414). An old scene whose delete runs after the next scene
+ * has loaded its stage takes the new stage's archive down with it. The play
+ * scene's own stage changes never overlap like that; a title screen deleted
+ * while it still has work in flight (on hardware its IsDelete can lag for
+ * frames) does. Hold the new scene until the old stage's archive is gone:
+ * before phase_1 renames the stage, dComIfG_getStageRes("Stage", "stage.dzs")
+ * still answers for the old one.
  */
 #define WWHD_RESLOADER_OFF_PENDING  0x0D8  /* [V] s32, requests queued or in flight */
 #define WWHD_RESLOADER_OFF_STATE    0x0DC  /* [V] s32, 0 idle, 1/2 loading */
@@ -61,5 +73,16 @@ static __inline int wwhd_resLoaderSettled(void) {
            *(const s32*)(l + WWHD_RESLOADER_OFF_STATE) == 0 &&
            *(const s32*)(l + WWHD_RESLOADER_OFF_DEFERRED) == 0;
 }
+
+#ifdef WWHD_ENABLE_GAME_CALLS
+typedef void* (*dComIfG_getStageRes_t)(const char* arc, const char* file);
+
+/** [V] A file of the current stage's archive, or NULL when it is not loaded. */
+static __inline void* dComIfG_getStageRes(const char* arc, const char* file) {
+    if (!wwhd_textResolved || !wwhd_regionResolved)
+        return (void*)0;
+    return WWHD_FN(dComIfG_getStageRes_t, wwhd_map->dComIfG_getStageRes)(arc, file);
+}
+#endif /* WWHD_ENABLE_GAME_CALLS */
 
 #endif /* LIBWWHD_M_DO_RES_LOADER_H */

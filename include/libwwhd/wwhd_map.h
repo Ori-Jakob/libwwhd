@@ -529,7 +529,11 @@ typedef enum wwhd_region_e {
      *     view_setup, so the view record is final when it returns; draw     \
      *     (+0x10, USA 0x024FFC40) builds both projections from it. Found as \
      *     the only data xref to camera_draw in each build. */               \
-    X(camProcMethods,       DATA, 0x101D5538u, 0x101D5538u, 0x101D5558u)
+    X(camProcMethods,       DATA, 0x101D5538u, 0x101D5538u, 0x101D5558u)     \
+    /* [V] dComIfG_getStageRes(arc, file): a file of the current stage's    \
+     *     archive (play +0x5134 names the stage), or NULL. The first call   \
+     *     in dStage_InitCreate, whose assert is d_stage.cpp:4871. */        \
+    X(dComIfG_getStageRes,  TEXT, 0x0252447Cu, 0x02524480u, 0x02524480u)
 
 typedef struct wwhd_map_t {
 #define X(name, seg, usa, eur, jap) wwhd_addr_t name;
