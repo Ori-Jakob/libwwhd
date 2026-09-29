@@ -50,6 +50,49 @@
 #define WWHD_IRON_BOOTS_STICK_SCALE    0.5f   /* [V] the halving in setStickData */
 #define WWHD_ROPE_UP_STEP              5.0f   /* [V] procRopeUp */
 
+/**
+ * [V] The `bl checkHeavyStateOn` calls that make the Iron Boots walk heavy:
+ * setBlendMoveAnime's walk rates, animation choice (WALKHBOOTS), run branch
+ * and foot flag; setBlendAtnMoveAnime's strafe rate; setStickData's halving;
+ * setSpeedAndAngleNormal's x4 and threshold; setNormalSpeedF's target;
+ * setDoStatusBasic. Each is followed by `cmpwi r3,0`, so every volatile
+ * register is dead there. Answering "not heavy" at these alone, while the
+ * boots are the only reason, gives the normal walk and run and keeps the
+ * boots' weight (gravity, wind, switches, sinking), which is read elsewhere.
+ * The call words are the same in all three builds.
+ */
+typedef struct wwhd_codeSite_t {
+    wwhd_addr_t usa, eur, jap;
+    u32         word;
+} wwhd_codeSite_t;
+
+#define WWHD_HEAVY_WALK_SITES 10
+static const wwhd_codeSite_t wwhd_heavyWalkSites[WWHD_HEAVY_WALK_SITES] = {
+    { 0x023E15E0u, 0x023E15E4u, 0x023E15E8u, 0x4BFFA645u },
+    { 0x023E16C4u, 0x023E16C8u, 0x023E16CCu, 0x4BFFA561u },
+    { 0x023E1C40u, 0x023E1C44u, 0x023E1C48u, 0x4BFF9FE5u },
+    { 0x023E1C50u, 0x023E1C54u, 0x023E1C58u, 0x4BFF9FD5u },
+    { 0x023E8518u, 0x023E851Cu, 0x023E8520u, 0x4BFF370Du },
+    { 0x023F41C0u, 0x023F41C4u, 0x023F41C8u, 0x4BFE7A65u },
+    { 0x024165ACu, 0x024165B0u, 0x024165B4u, 0x4BFC5679u },
+    { 0x0241684Cu, 0x02416850u, 0x02416854u, 0x4BFC53D9u },
+    { 0x024162B8u, 0x024162BCu, 0x024162C0u, 0x4BFC596Du },
+    { 0x023EA6B4u, 0x023EA6B8u, 0x023EA6BCu, 0x4BFF1571u },
+};
+
+/** A code site's link-time address in the running build, 0 before one is selected. */
+static __inline wwhd_addr_t wwhd_codeSiteAddr(const wwhd_codeSite_t* s) {
+    if (!s || !wwhd_regionResolved || !wwhd_regionInfo_p)
+        return 0;
+    switch (wwhd_regionInfo_p->region) {
+    case WWHD_REGION_USA:
+    case WWHD_REGION_RANDO: return s->usa;
+    case WWHD_REGION_EUR:   return s->eur;
+    case WWHD_REGION_JAP:   return s->jap;
+    default:                return 0;
+    }
+}
+
 /** [V] Link's u32 at a byte offset, or NULL without Link. */
 static __inline u32* daPy_u32At(daPy_lk_c* link, u32 ofs) {
     return link ? (u32*)((u8*)link + ofs) : (u32*)0;

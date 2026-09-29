@@ -575,7 +575,16 @@ typedef enum wwhd_region_e {
     X(shipTurnMax,          DATA, 0x1003A6F4u, 0x1003A6F4u, 0x1003A6F4u)     \
     /* [V] `mulli r0,r0,0x14` in the Magic Armor's rupee-loss routine (USA   \
      *     0x023F4CB0): rupees lost per point of damage. Word 0x1C000014. */ \
-    X(magicArmorCostSite,   TEXT, 0x023F4D1Cu, 0x023F4D20u, 0x023F4D24u)
+    X(magicArmorCostSite,   TEXT, 0x023F4D1Cu, 0x023F4D20u, 0x023F4D24u)     \
+    /* [V] daPy_lk_c::checkHeavyStateOn: no event, no demo, then flags0 &    \
+     *     0x42000000 (boots, Morth) or a heavy carried object. */           \
+    X(daPy_checkHeavyStateOn, TEXT, 0x023DBC24u, 0x023DBC28u, 0x023DBC2Cu)   \
+    /* [V] Hookshot code sites; see d/actor/d_a_hookshot.h. */               \
+    X(hsStickSite,          TEXT, 0x024EF488u, 0x024EF48Cu, 0x024EF490u)     \
+    X(hsSightLisSite,       TEXT, 0x02432DB0u, 0x02432DB4u, 0x02432DB8u)     \
+    X(hsSightLfsSite,       TEXT, 0x02432DC0u, 0x02432DC4u, 0x02432DC8u)     \
+    X(hsChainClampSite,     TEXT, 0x02176EFCu, 0x02176EFCu, 0x02176F00u)     \
+    X(hsDrawPitchSite,      TEXT, 0x02176B2Cu, 0x02176B2Cu, 0x02176B30u)
 
 typedef struct wwhd_map_t {
 #define X(name, seg, usa, eur, jap) wwhd_addr_t name;
