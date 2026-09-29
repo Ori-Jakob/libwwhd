@@ -106,4 +106,9 @@ static __inline u16 dSv_event_salvageFlag(int salvageId) {
  *  The one literal the salvage completion path writes. */
 #define WWHD_EVFLAG_SALVAGE_CHART 0x3E02u
 
+/** [V] The Hurricane Spin has been learned. Orca sets it when you hit him with
+ *  the spin; procCutTurnMove_init (USA 0x02442190) will not charge without it
+ *  (or the lesson's tmp bit 0x0402). */
+#define WWHD_EVFLAG_HURRICANE_SPIN 0x0B20u
+
 #endif /* LIBWWHD_D_SAVE_EVENT_H */

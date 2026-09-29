@@ -171,6 +171,33 @@ static __inline f32* daShip_getSailSpeedPtr(void) {
 /** [V] The shipped value of the above, for restoring it. */
 #define WWHD_SAIL_SPEED_STOCK 55.0f
 
+/**
+ * [V] Turning. daShip_c::setMoveAngle (USA 0x0247D4B0, byte-identical in all
+ * three builds) turns by rate * (tiller >> 6), with
+ *
+ *     rate = clamp(4.0 - |speedF| / 100.0 * 3.0, 0.1, turnMax)
+ *
+ * unless the turn-boost counter (+0x670, 30 after a landing, counted down by
+ * execute before the procedure runs) is 15 or more, which gives turnMax
+ * outright. So full sail (55) turns at 2.35 and anything past 130 at 0.1.
+ * Holding the counter at 30 removes the speed penalty; turnMax is the only
+ * reader of its .rodata float. Neither applies in a whirlpool or cyclone, or
+ * while the boat is in the air. Keep turnMax under 256: the yaw step is s16.
+ */
+#define daShip_OFF_turnBoost  0x670  /* [V] s16 */
+#define WWHD_SHIP_TURN_BOOST_FULL 30 /* [V] the landing value */
+#define WWHD_SHIP_TURN_MAX_STOCK 3.6f
+
+static __inline f32* daShip_getTurnMaxPtr(void) {
+    if (!wwhd_regionResolved)
+        return (f32*)0;
+    return WWHD_AT_DATA(f32, wwhd_map->shipTurnMax);
+}
+
+static __inline s16* daShip_getTurnBoost(daShip_c* ship) {
+    return ship ? (s16*)((u8*)ship + daShip_OFF_turnBoost) : (s16*)0;
+}
+
 /* ========================================================================
  * Position and facing
  *

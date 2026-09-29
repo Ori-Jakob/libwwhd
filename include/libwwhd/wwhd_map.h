@@ -555,7 +555,27 @@ typedef enum wwhd_region_e {
     X(resStore,             DATA, 0x101F4F7Cu, 0x101F4F94u, 0x101F4FC4u)     \
     /* [V] Pointer to the layout loader. Its thread loads the title, opening \
      *     and file select layouts (USA 0x026FBC98) through resStore. */     \
-    X(layoutLoader,         DATA, 0x101F7274u, 0x101F728Cu, 0x101F72BCu)
+    X(layoutLoader,         DATA, 0x101F7274u, 0x101F728Cu, 0x101F72BCu)     \
+    /* [V] g_fopAcTg_Queue, the list of every live actor; fopAcM_Search      \
+     *     (USA 0x025D5218) passes it to cLsIt_Judge. See f_op/f_op_actor.h. */\
+    X(fopAcTg_Queue,        DATA, 0x101F3328u, 0x101F3328u, 0x101F3348u)     \
+    /* [V] The boomerang's free-throw distance, stock 2500.0f on foot and    \
+     *     5000.0f on the boat or in GanonK. .rodata, read only by getFlyMax \
+     *     (USA 0x020CECF0), same address in all three builds. */            \
+    X(boomerangFlyMax,      DATA, 0x1000AFA8u, 0x1000AFA8u, 0x1000AFA8u)     \
+    X(boomerangFlyMaxFar,   DATA, 0x1000AFA4u, 0x1000AFA4u, 0x1000AFA4u)     \
+    /* [V] The hookshot's private float pool; offsets in                    \
+     *     d/actor/d_a_hookshot.h. .rodata, same in all three builds. */     \
+    X(hookshotParams,       DATA, 0x100116C0u, 0x100116C0u, 0x100116C0u)     \
+    /* [V] l_himo2HIO, the grappling hook's search block. .bss, filled once  \
+     *     at boot (USA/EUR 0x0216F6D8), same in all three builds. */        \
+    X(himo2HIO,             DATA, 0x104646A0u, 0x104646A0u, 0x104646A0u)     \
+    /* [V] The boat's top turn rate, stock 3.6f. .rodata, read only by       \
+     *     daShip_c::setMoveAngle (USA 0x0247D4B0), same in all builds. */   \
+    X(shipTurnMax,          DATA, 0x1003A6F4u, 0x1003A6F4u, 0x1003A6F4u)     \
+    /* [V] `mulli r0,r0,0x14` in the Magic Armor's rupee-loss routine (USA   \
+     *     0x023F4CB0): rupees lost per point of damage. Word 0x1C000014. */ \
+    X(magicArmorCostSite,   TEXT, 0x023F4D1Cu, 0x023F4D20u, 0x023F4D24u)
 
 typedef struct wwhd_map_t {
 #define X(name, seg, usa, eur, jap) wwhd_addr_t name;

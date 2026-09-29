@@ -5,6 +5,7 @@
 #include "libwwhd/d/d_save.h"
 #include "libwwhd/d/d_save_bits.h"
 #include "libwwhd/d/d_save_access.h"
+#include "libwwhd/d/d_com_inf_game.h"
 
 /**
  * libwwhd - the Nintendo Gallery's figurines
@@ -74,6 +75,41 @@ static __inline int dSv_getFigureNum(void) {
         if (dSv_isFigure(i))
             n++;
     return n;
+}
+
+/**
+ * [V] The gallery's hatch sits on the islet in sea room 41 (Forest Haven's
+ * sector), not on Windfall. It opens on sea switch 0x47, which the crystal
+ * switch on Forest Haven sets: Ohatch _create (USA 0x0237F2EC) spawns open
+ * with it and Manny (0x0229C22C) stays away. Manny's FIGURE_HATCH_OPEN event
+ * also sets 0x5E, which lowers the islet's ladder. The sea saves in table 0.
+ *
+ * [V] Membership is event 0x3401: the gallery door (USA 0x021A43F8) stays
+ * locked without it, and Carlov sets it when he accepts a pictograph. He takes
+ * none until his intro (0x2F02) has been heard. The game never clears 0x3401.
+ */
+#define WWHD_GALLERY_SAVE_TBL      0
+#define WWHD_GALLERY_SW_HATCH      0x47
+#define WWHD_GALLERY_SW_LADDER     0x5E
+#define WWHD_EVFLAG_GALLERY_MEMBER 0x3401u
+#define WWHD_EVFLAG_CARLOV_INTRO   0x2F02u
+
+static __inline int dSv_isGalleryHatchOpen(void) {
+    dSv_memBit_c* b = dComIfGs_getStageMemBit(WWHD_GALLERY_SAVE_TBL);
+    return b && dSv_memBit_isSwitch(b, WWHD_GALLERY_SW_HATCH);
+}
+
+static __inline void dSv_setGalleryHatchOpen(int open) {
+    dSv_memBit_c* b = dComIfGs_getStageMemBit(WWHD_GALLERY_SAVE_TBL);
+    if (!b)
+        return;
+    if (open) {
+        dSv_memBit_onSwitch(b, WWHD_GALLERY_SW_HATCH);
+        dSv_memBit_onSwitch(b, WWHD_GALLERY_SW_LADDER);
+    } else {
+        dSv_memBit_offSwitch(b, WWHD_GALLERY_SW_HATCH);
+        dSv_memBit_offSwitch(b, WWHD_GALLERY_SW_LADDER);
+    }
 }
 
 #endif /* LIBWWHD_D_FIGURE_H */

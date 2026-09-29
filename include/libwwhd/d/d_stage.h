@@ -190,6 +190,17 @@ typedef struct dStage_stagInfo_c {
 } dStage_stagInfo_c;
 WWHD_ASSERT_OFFSET(dStage_stagInfo_c, mProp, 0x09);
 
+/** [V] Stage type, (mStageTypeAndSchbit >> 16) & 7. The play create phase
+ *  (USA 0x025B1FF8) takes the sword away when it reads FF1 here with event
+ *  0x0801 set; the HUD meter restricts items in MISC stages. */
+#define WWHD_STAGE_TYPE_MISC 2
+#define WWHD_STAGE_TYPE_BOSS 3
+#define WWHD_STAGE_TYPE_FF1  5
+
+static __inline int dStage_stagInfo_getStageType(const dStage_stagInfo_c* s) {
+    return s ? (int)((s->mStageTypeAndSchbit >> 16) & 7u) : -1;
+}
+
 /** [V] The dSv_memory slot a STAG record names, or -1 for NULL. The stage
  *  create and the stage delete compute exactly this. */
 static __inline int dStage_stagInfo_getSaveTbl(const dStage_stagInfo_c* s) {

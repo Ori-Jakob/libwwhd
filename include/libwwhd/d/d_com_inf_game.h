@@ -470,6 +470,21 @@ static __inline int dComIfGp_getStageSaveTblNo(void) {
     return (n >= 0 && n < dSv_STAGE_MAX) ? n : -1;
 }
 
+/**
+ * [V] A stage's switch and item bits: the live bank (dSv_info_c::mMemory) when
+ * that stage is loaded, else its slot in the save, which the live bank is only
+ * copied into on leaving. Writing the other copy is lost or lands on another
+ * stage. Avoid it while a stage change is pending.
+ */
+static __inline dSv_memBit_c* dComIfGs_getStageMemBit(int saveTbl) {
+    dSv_info_c* s = dComIfGs_getSaveInfo();
+    if (!s || saveTbl < 0 || saveTbl >= dSv_STAGE_MAX)
+        return (dSv_memBit_c*)0;
+    if (dComIfGp_getStageSaveTblNo() == saveTbl)
+        return &s->mMemory.mMembit;
+    return &s->mSavedata.mMemory[saveTbl].mMembit;
+}
+
 /** [V] The collision root, or NULL. There is no ground-query API here - see
  *  SSystem/c_bg_w.h for what is and is not mapped. */
 static __inline void* dComIfGp_getBgS(void) {
@@ -705,6 +720,31 @@ static __inline dSv_restart_c* dComIfGs_getRestart(void) {
 static __inline dSv_turnRestart_c* dComIfGs_getTurnRestart(void) {
     dSv_info_c* s = dComIfGs_getSaveInfo();
     return s ? &s->mTurnRestart : (dSv_turnRestart_c*)0;
+}
+
+/**
+ * [V] The buttons Link may act on this frame. The HUD meter rebuilds it in its
+ * draw (USA 0x02593B10, stored at 0x02595700) from the stage type and Link's
+ * state, and daPy setStickData (0x023F32E4) drops any press whose bit is
+ * clear; nothing else reads it. MISC stages, the boat, boss rooms and aiming
+ * clear the item and sword bits. Past the JAP boundary.
+ */
+#define WWHD_BUTTON_MODE_A     0x01u
+#define WWHD_BUTTON_MODE_B     0x02u /* sword */
+#define WWHD_BUTTON_MODE_X     0x04u
+#define WWHD_BUTTON_MODE_Y     0x08u
+#define WWHD_BUTTON_MODE_R     0x20u
+#define WWHD_BUTTON_MODE_TOUCH 0x40u /* GamePad quick items */
+
+static __inline u8* dComIfGp_getButtonActionMode(void) {
+    return (u8*)dComIfGp_playAt(0x492C);
+}
+
+/** [P] The running minigame's type byte; 2 and 6 block the Hurricane Spin
+ *  charge (procCutTurnMove_init, USA 0x02442190). Past the JAP boundary. */
+static __inline u8 dComIfGp_getMiniGameType(void) {
+    u8* p = (u8*)dComIfGp_playAt(0x4A4A);
+    return p ? *p : (u8)0;
 }
 
 /** [V] The first player status word, or 0. Past the JAP boundary. */

@@ -73,6 +73,10 @@
 #include "libwwhd/d/d_cc_s.h"
 #include "libwwhd/d/d_cc_mass_s.h"
 #include "libwwhd/d/actor/d_a_ship.h"
+#include "libwwhd/d/actor/d_a_bomb.h"
+#include "libwwhd/d/actor/d_a_boomerang.h"
+#include "libwwhd/d/actor/d_a_hookshot.h"
+#include "libwwhd/d/actor/d_a_player_equip.h"
 #include "libwwhd/d/actor/d_a_title.h"
 
 #endif /* LIBWWHD_H */

@@ -130,6 +130,34 @@ WWHD_ASSERT_SIZE  (fopAc_ac_c,              0x3AC);
  */
 #define WWHD_PROC_METER 0x1E1
 
+/**
+ * [V] Walking every live actor: the actor tag queue (g_fopAcTg_Queue),
+ * {head +0, tail +4, count +8}. Each node links on at +8 and carries its actor
+ * at +0xC. fopAcM_Search (USA 0x025D5218) hands this queue to cLsIt_Judge
+ * (0x020100BC), which follows +8 (cNdIt_Judge 0x02019DE8) and loads the actor
+ * from +0xC (cTgIt_JudgeFilter 0x0201AA08). Plain reads, no game call; walk it
+ * from the game thread.
+ */
+static __inline wwhd_gptr_t fopAcTg_firstNode(void) {
+    if (!wwhd_regionResolved)
+        return 0;
+    return *WWHD_AT_DATA(wwhd_gptr_t, wwhd_map->fopAcTg_Queue);
+}
+
+static __inline wwhd_gptr_t fopAcTg_nextNode(wwhd_gptr_t node) {
+    return *WWHD_AT(wwhd_gptr_t, node + 0x8);
+}
+
+static __inline fopAc_ac_c* fopAcTg_nodeActor(wwhd_gptr_t node) {
+    const wwhd_gptr_t a = *WWHD_AT(wwhd_gptr_t, node + 0xC);
+    return a ? WWHD_AT(fopAc_ac_c, a) : (fopAc_ac_c*)0;
+}
+
+/** [V] An actor's process name (s16 at +0x08, what fpcSch_JudgeForPName tests). */
+static __inline s16 fopAcM_getProcName(const fopAc_ac_c* ac) {
+    return ac ? *(const s16*)((const u8*)ac + 0x08) : (s16)-1;
+}
+
 /** [V] One entry of the interleaved sin/cos table, indexed (angle >> 3). */
 typedef struct cM_sinCos_c {
     /* 0x0 */ f32 sin;  /* [V] */
